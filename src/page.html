@@ -1,0 +1,112 @@
+<title>無銘</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Yuji+Boku&display=swap">
+<style>
+/* 墨の闇に和紙と朱。ゲーム画面いっぱいを使う一枚の舞台 */
+:root{--sumi:#0e0c12;--ink2:#1b1720;--washi:#ece2cc;--washi2:#b9ad95;--shu:#d03e2e;--kin:#cda451;--ai:#2c4468;--u:2px;--brush:"Yuji Boku","Hiragino Mincho ProN","Yu Mincho",serif;--dot:"DotGothic16","Hiragino Kaku Gothic ProN","Yu Gothic",monospace;color-scheme:dark}
+html,body{height:100%;overflow:hidden}
+body{background:var(--sumi);color:var(--washi);font-family:var(--dot);user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#stage{position:relative;width:calc(640*var(--u));height:calc(360*var(--u));overflow:hidden;background:#000;flex:none}
+#c{width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;image-rendering:pixelated}
+.layer{position:absolute;inset:0;pointer-events:none}
+/* 上下の帯に載る情報 */
+#hud{transition:opacity .5s}
+#hud.town .barwrap .lbl{opacity:.9}
+.bars{position:absolute;left:calc(14*var(--u));top:calc(9*var(--u));display:grid;gap:calc(4*var(--u));width:calc(190*var(--u))}
+.barwrap{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:calc(5*var(--u))}
+.barwrap .lbl{font-family:var(--brush);font-size:calc(11*var(--u));color:var(--washi);text-shadow:0 0 2px #000,0 1px 0 #000}
+.gauge{height:calc(6*var(--u));background:#0a080cd9;border:calc(1*var(--u)) solid #6a5a38;position:relative;overflow:hidden}
+.gauge i{position:absolute;left:0;top:0;bottom:0;width:100%;transition:width .12s linear;background:var(--shu);box-shadow:inset 0 calc(1*var(--u)) 0 #ff8a60}
+.gauge.ki i{background:#6aa9d8;box-shadow:inset 0 calc(1*var(--u)) 0 #bfe2ff}
+.gauge b{position:absolute;left:0;top:0;bottom:0;background:#fff7;transition:width .55s ease-out .1s}
+.hudr{position:absolute;right:calc(14*var(--u));top:calc(9*var(--u));text-align:right;font-size:calc(9.5*var(--u));line-height:1.5;text-shadow:0 1px 0 #000}
+.hudr b{font-family:var(--brush);font-weight:400;font-size:calc(13*var(--u));color:var(--kin);display:block}
+#bossb{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(13*var(--u));width:calc(330*var(--u));text-align:center;display:none}
+#bossb span{font-family:var(--brush);font-size:calc(12*var(--u));display:block;margin-bottom:calc(3*var(--u));color:var(--washi);text-shadow:0 1px 0 #000}
+#bossb .gauge{height:calc(5*var(--u))}
+#helpline{position:absolute;left:0;right:0;bottom:calc(5*var(--u));text-align:center;font-size:calc(8*var(--u));color:#c9bda4cc;text-shadow:0 1px 0 #000}
+#prompt{position:absolute;left:50%;bottom:calc(66*var(--u));transform:translateX(-50%);padding:calc(3*var(--u)) calc(9*var(--u));background:#120e16e8;border:calc(1*var(--u)) solid var(--kin);font-size:calc(10*var(--u));white-space:nowrap;display:none;pointer-events:auto;cursor:pointer}
+#prompt kbd{font:inherit;color:var(--kin);margin-right:.5em}
+#hint{position:absolute;left:50%;top:calc(66*var(--u));transform:translateX(-50%);background:#0c0a10c4;padding:calc(3*var(--u)) calc(10*var(--u));font-size:calc(9.5*var(--u));white-space:nowrap;opacity:0;transition:opacity .4s;max-width:96%;}
+#toast{position:absolute;right:calc(14*var(--u));top:calc(60*var(--u));display:grid;gap:calc(3*var(--u));justify-items:end}
+#toast div{background:#120e16e0;border-left:calc(2*var(--u)) solid var(--kin);padding:calc(2*var(--u)) calc(8*var(--u));font-size:calc(9.5*var(--u));animation:tin 3.2s forwards}
+@keyframes tin{0%{opacity:0;transform:translateX(8px)}8%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
+#banner{position:absolute;left:50%;top:calc(66*var(--u));transform:translateX(-50%);width:calc(350*var(--u));text-align:center;background:linear-gradient(90deg,#0000,#0e0b12f2 12%,#0e0b12f2 88%,#0000);padding:calc(7*var(--u)) calc(30*var(--u));opacity:0;transition:opacity .5s}
+#banner em{font-style:normal;color:var(--kin);font-size:calc(9*var(--u));letter-spacing:.3em}
+#banner strong{display:block;font-family:var(--brush);font-weight:400;font-size:calc(21*var(--u));margin:calc(2*var(--u)) 0}
+#banner p{margin:0;font-size:calc(9.5*var(--u));line-height:1.6;color:var(--washi2)}
+#chapter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity .9s}
+#chapter em{font-style:normal;font-family:var(--brush);font-size:calc(15*var(--u));color:var(--kin);letter-spacing:.3em;text-shadow:0 2px 6px #000}
+#chapter strong{font-family:var(--brush);font-weight:400;font-size:calc(46*var(--u));letter-spacing:.14em;text-shadow:0 2px 0 #000,0 0 18px #000}
+/* 語り */
+#dlg{position:fixed;left:50%;transform:translateX(-50%);width:min(100vw,calc(620*var(--u)));bottom:max(calc((100vh - 360*var(--u))/2 + 7*var(--u)),env(safe-area-inset-bottom,0px));display:none;pointer-events:auto;cursor:pointer}
+#dlgin{position:relative;display:flex;gap:calc(9*var(--u));background:#0f0c14f4;border:calc(1*var(--u)) solid #6a5a38;outline:calc(1*var(--u)) solid #000;padding:calc(8*var(--u)) calc(12*var(--u));min-height:calc(74*var(--u))}
+#pframe{flex:none;width:calc(62*var(--u));height:calc(62*var(--u));border:calc(1*var(--u)) solid #6a5a38;background:linear-gradient(#2c2632,#17131c);overflow:hidden}
+#pc{width:100%;height:100%;image-rendering:pixelated;display:block}
+#dtxt{flex:1;min-width:0}
+#dname{font-family:var(--brush);font-size:max(14px,calc(11.5*var(--u)));color:var(--kin);margin-bottom:calc(2*var(--u));min-height:1em}
+#dbody{font-size:max(14px,calc(11.5*var(--u)));line-height:1.62;white-space:pre-wrap}
+#dbody.nar{color:#d4cbb6}
+#dmore{position:absolute;right:calc(9*var(--u));bottom:calc(4*var(--u));color:var(--kin);font-size:calc(9*var(--u));animation:bl 1s steps(2) infinite}
+@keyframes bl{50%{opacity:0}}
+#choices{position:fixed;left:50%;transform:translateX(-50%);width:min(94vw,calc(430*var(--u)));bottom:calc((100vh - 360*var(--u))/2 + 88*var(--u));display:none;gap:calc(2*var(--u));pointer-events:auto}
+#choices.open{display:grid}
+#choices button{all:unset;display:block;cursor:pointer;padding:calc(5*var(--u)) calc(11*var(--u));background:#120e16f2;border:calc(1*var(--u)) solid #4a3f2a;font-size:max(14px,calc(11*var(--u)));line-height:1.45;font-family:var(--dot);color:var(--washi)}
+#choices button.on,#choices button:hover,#choices button:focus-visible{border-color:var(--kin);background:#2a1f16f6;color:#fff4d4}
+#choices button.on::before{content:"▶ ";color:var(--shu)}
+/* 墨の独白 */
+#flash{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:#060508;gap:1.15em;padding:0 max(24px,8vw);z-index:6;pointer-events:auto;cursor:pointer;opacity:0;transition:opacity .7s;text-align:center}
+#flash.show{opacity:1}
+#flash p{margin:0;font-family:var(--dot);font-size:max(15px,calc(12.5*var(--u)));line-height:1.75;opacity:0;transform:translateY(4px);transition:opacity .9s,transform .9s;max-width:44em;color:#e6dcc5}
+#flash p.in{opacity:1;transform:none}
+#flash .more{position:absolute;bottom:6vh;color:var(--kin);font-size:max(12px,calc(9*var(--u)));opacity:0;transition:opacity .4s}
+/* 巻物 */
+#menu{position:fixed;inset:0;display:none;background:#08070bcf;z-index:5;align-items:center;justify-content:center;pointer-events:auto;padding:16px}
+#menuin{width:min(94vw,calc(520*var(--u)));max-height:92vh;overflow:auto;background:var(--washi);color:#201a18;padding:calc(12*var(--u)) calc(18*var(--u));border-left:calc(6*var(--u)) solid #6b4a24;border-right:calc(6*var(--u)) solid #6b4a24;font-size:max(13px,calc(10*var(--u)));line-height:1.6}
+#menuin h2{font-family:var(--brush);font-weight:400;font-size:max(22px,calc(20*var(--u)));margin:0 0 .2em}
+#tabs{display:flex;gap:.4em;flex-wrap:wrap;border-bottom:1px solid #8a7450;margin-bottom:.8em}
+#tabs button{all:unset;cursor:pointer;padding:.25em .8em;font-family:var(--brush);color:#6a5a48}
+#tabs button.on,#tabs button:focus-visible{background:#201a18;color:var(--washi)}
+.ent{margin:0 0 .75em}.ent b{font-weight:400;font-family:var(--brush);font-size:1.15em;color:#7c1e16;display:block}.ent.done b{color:#6a6256;text-decoration:line-through}
+.route{display:grid;grid-template-columns:auto 1fr;gap:.2em .8em;align-items:center;margin-bottom:.9em}.dots{letter-spacing:.2em;color:#7c1e16}
+#mclose{all:unset;cursor:pointer;float:right;font-family:var(--brush);padding:.1em .6em;border:1px solid #8a7450}
+/* 表紙 */
+#title{position:absolute;inset:0;display:flex;pointer-events:auto;transition:opacity 1s}
+#tname{position:absolute;right:11%;top:9%;writing-mode:vertical-rl;font-family:var(--brush);font-size:calc(92*var(--u));line-height:1;letter-spacing:.06em;color:#14100f;text-shadow:0 0 calc(1*var(--u)) #fff4,0 0 calc(24*var(--u)) #ffe6c455}
+#tseal{position:absolute;right:calc(11% - 18*var(--u));top:calc(9% + 188*var(--u));width:calc(15*var(--u));height:calc(15*var(--u));background:var(--shu);color:#fff3d8;font-family:var(--brush);font-size:calc(11*var(--u));display:grid;place-items:center}
+#tsub{position:absolute;left:calc(40*var(--u));top:calc(82*var(--u));font-size:calc(9.5*var(--u));line-height:2;color:#fff4dc;text-shadow:0 1px 2px #000}
+#tmenu{position:absolute;left:calc(40*var(--u));bottom:calc(66*var(--u));display:grid;gap:calc(3*var(--u));justify-items:start}
+#tmenu button{all:unset;cursor:pointer;font-family:var(--brush);font-size:calc(17*var(--u));padding:calc(1*var(--u)) calc(8*var(--u));color:var(--washi);text-shadow:0 1px 3px #000}
+#tmenu button.on,#tmenu button:hover,#tmenu button:focus-visible{color:#fff;background:linear-gradient(90deg,#d03e2ee8,#d03e2e00)}
+#tcredit{position:absolute;left:calc(40*var(--u));bottom:calc(12*var(--u));font-size:calc(7.5*var(--u));color:#d4cab2aa}
+/* 触れて遊ぶ */
+#touch{position:fixed;left:0;right:0;bottom:0;height:0;display:none;z-index:4;pointer-events:none}
+body.touchy #touch{display:block}
+.tb{position:absolute;display:grid;place-items:center;pointer-events:auto;width:58px;height:58px;border-radius:50%;background:#1b1720b8;border:2px solid #cda45188;color:var(--washi);font-family:var(--brush);font-size:20px;touch-action:none}
+.tb:active,.tb.on{background:#d03e2ed0}
+.tb.s{width:46px;height:46px;font-size:15px}
+@media (prefers-reduced-motion:reduce){#toast div{animation-duration:3.2s}}
+</style>
+<div id="wrap"><div id="stage"><canvas id="c" width="640" height="360"></canvas>
+ <div id="hud" class="layer" style="opacity:0">
+  <div class="bars"><div class="barwrap"><span class="lbl">命</span><div class="gauge" id="ghp"><b id="ghpb"></b><i id="ghpi"></i></div></div><div class="barwrap"><span class="lbl">気</span><div class="gauge ki" id="gki"><i id="gkii"></i></div></div></div>
+  <div class="hudr"><b id="hplace"></b><span id="hmoney"></span></div>
+  <div id="bossb"><span id="bname"></span><div class="gauge"><b id="bhb"></b><i id="bhi"></i></div></div>
+  <div id="helpline"></div>
+ </div>
+ <div id="prompt"></div><div id="hint" class="layer" style="inset:auto;"></div><div id="toast" class="layer" style="inset:auto;top:calc(60*var(--u));right:calc(14*var(--u));"></div>
+ <div id="banner" class="layer" style="inset:auto;top:calc(66*var(--u));left:50%;"><em id="bk"></em><strong id="bt"></strong><p id="bd"></p></div>
+ <div id="chapter" class="layer"><em id="cht"></em><strong id="chs"></strong></div>
+ <div id="title" class="layer"><div id="tsub">名を潰した刀と、<br>名を失くした男の話。</div><div id="tname">無銘</div><div id="tseal">銘</div>
+  <div id="tmenu"><button id="tnew" class="on">はじめから</button><button id="tcont">つづきから</button><button id="thelp">操作を見る</button></div>
+  <div id="tcredit">絵・動き・音はすべてコードで生成 / 一部の火花エフェクト: pixelfx (MIT)</div></div>
+</div></div>
+<div id="dlg"><div id="dlgin"><div id="pframe"><canvas id="pc" width="96" height="96"></canvas></div><div id="dtxt"><div id="dname"></div><div id="dbody"></div></div><div id="dmore" hidden>▼</div></div></div>
+<div id="choices"></div>
+<div id="flash"><div class="more">▼ 続ける</div></div>
+<div id="menu"><div id="menuin"><button id="mclose">閉じる</button><h2>巻物</h2><div id="tabs"></div><div id="mbody"></div></div></div>
+<div id="touch"></div>
+<script>
+/*__JS__*/
+</script>
