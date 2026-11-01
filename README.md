@@ -2,13 +2,15 @@
 
 記憶を失った侍が、自分の過去を追うか剣を磨くかを選んで旅する、和風ピクセルの横スクロール剣戟アクション。
 
+**遊ぶ:** https://raybbb101.github.io/mumei/ (PCのブラウザ推奨、スマホはタッチ操作)
+
 ## ビルド
 
 ```bash
 python3 build.py
 ```
 
-`src/` と `fx/` を 1 枚の `mumei.html` にまとめます。手元で確認するときは、同時に生成される `play.html` を HTTP サーバー経由で開きます。
+`src/` と `fx/` を 1 枚にまとめ、GitHub Pages 用の `index.html` などを生成します。手元で確認するときは、同時に生成される `play.html` を HTTP サーバー経由で開きます。
 
 ## 構成
 

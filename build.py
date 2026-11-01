@@ -8,4 +8,7 @@ html=open(here+'/src/page.html',encoding='utf8').read().replace('/*__JS__*/',js)
 open(here+'/mumei.html','w',encoding='utf8').write(html)
 print('mumei.html',len(html)//1024,'KB')
 # 手元確認用(公開時に付く骨組みと同じもの)
-open(here+'/play.html','w',encoding='utf8').write('<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body>'+html+'</body></html>')
+# index.html は GitHub Pages で誰でも遊べる入口、play.html は手元確認用
+page='<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body>'+html+'</body></html>'
+for name in ('index.html','play.html'):
+    open(here+'/'+name,'w',encoding='utf8').write(page)
