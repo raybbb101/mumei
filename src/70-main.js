@@ -53,15 +53,19 @@ function drawField(g,time){const w=G.world,left=G.cam-W/2;drawWorldBack(g,w,G.ca
  for(const gh of Fx.ghosts){g.globalAlpha=(1-gh.age/.26)*.55;g.drawImage(gh.c,Math.round(gh.x-left-BW/2),Math.round(BASE_Y+gh.y-(BH-22)));}g.globalAlpha=1;
  const list=[...G.enemies].sort((a,b)=>a.f.depth-b.f.depth);for(const e of list)if(e.f.depth<0)e.f.draw(g);
  if(G.enterWalk){const u=G.enterWalk.t/G.enterWalk.d;drawRig(g,P.f.av,P.f.sx,BASE_Y-u*20,{scale:ACTOR_S*(1-u*.2),yaw:lerp(.45,-1.57,clamp(u*2.4)),mirror:false});}else P.f.draw(g);
- for(const e of list)if(e.f.depth>=0)e.f.draw(g);shotsDraw(g);Fx.draw(g,left);G.weather.draw(g,time);drawRays(g,w,time);
+ for(const e of list)if(e.f.depth>=0)e.f.draw(g);shotsDraw(g);Fx.draw(g,left);drawCombatMarks(g,left);G.weather.draw(g,time);drawRays(g,w,time);
  if(G.iaiLine){const l=G.iaiLine,u=l.age/.34,x0=l.x0-left,x1=l.x1-left;g.fillStyle='#fff';const th=l.age<.08?3:1;g.fillRect(Math.min(x0,x1),l.y-(th>>1),Math.abs(x1-x0)*(1-u*.4),th);g.fillStyle='#bfe0ff';for(let i=0;i<8;i++){const x=lerp(x0,x1,i/8+Math.random()*.1);g.fillRect(x,l.y+rand(-4,4),rand(3,10),1);}}
  drawWorldFront(g,w,G.cam,G.props);
  if(G.killLine){const k=G.killLine,u=k.age/.3,sx=k.x-left;g.fillStyle=`rgba(255,255,255,${1-u})`;g.beginPath();const th=(1-u)*7;g.moveTo(sx-260*k.dir,BASE_Y-150-th);g.lineTo(sx+260*k.dir,BASE_Y+60-th);g.lineTo(sx+260*k.dir,BASE_Y+60+th);g.lineTo(sx-260*k.dir,BASE_Y-150+th);g.fill();}}
 function vignette(){if(vignette.c)return vignette.c;const c=mkCanvas(W,H),g=c.getContext('2d'),q=g.createRadialGradient(W/2,H/2,H*.4,W/2,H/2,W*.68);q.addColorStop(0,'rgba(0,0,0,0)');q.addColorStop(1,'rgba(6,4,14,.42)');g.fillStyle=q;g.fillRect(0,0,W,H);return vignette.c=c;}
 function compose(frame,y,h,zoom){const sx=(rand(-1,1)*G.shake*.6+G.shakeDir[0]*G.shake*.5)|0,sy=(rand(-1,1)*G.shake*.6+G.shakeDir[1]*G.shake*.5)|0,z=1+zoom,w=W*z,hh=h*z;ctx.drawImage(frame,0,0,W,h,Math.round((W-w)/2+sx),Math.round(y+(h-hh)/2+sy),Math.round(w),Math.round(hh));}
 let last=performance.now(),acc=0;
+// 手応えの止め(ヒットストップ)の間に押された操作を捨てない
+const HOLD_KEYS=['slash','guard','dodge','jump','iai'];
+function drawCombatMarks(g,left){if(P.state==='iai'){const t=P.t,w=26,x=Math.round(P.f.x-left-w/2),y=BASE_Y-82,u=clamp(t/.55),just=t>=.55&&t<.8;g.fillStyle='#0a080c';g.fillRect(x-1,y-1,w+2,4);g.fillStyle=just?((t*30|0)%2?'#ffffff':'#ffe07c'):u>=1?'#a8d8ff':'#6aa9d8';g.fillRect(x,y,Math.round(w*u),2);}
+ for(const e of G.enemies){if(e.def.boss||!(e.barT>0)||e.state==='dead')continue;const w=24,x=Math.round(e.f.x-left-w/2),y=BASE_Y+e.f.depth-78*(e.def.scale||1)*(e.f.av.style.scale||1);g.fillStyle='#0a080c';g.fillRect(x-1,y-1,w+2,5);g.fillStyle='#d03e2e';g.fillRect(x,y,Math.round(w*clamp(e.hp/e.hpMax)),2);g.fillStyle=e.guardT>0?'#bfe0ff':'#cda451';g.fillRect(x,y+2,Math.round(w*clamp(e.posture/e.def.pos)),1);}}
 function frame(now){requestAnimationFrame(frame);let real=Math.min(.05,(now-last)/1000);last=now;if(document.hidden){return;}
- Audio2.tick();
+ rigBeginFrame();Audio2.tick();
  if(Input.hit('menu')&&G.mode!=='title'&&!UI._adv&&!UI._choose&&!UI._flashAdv){if(G.menu)UI.closeMenu();else if(!G.lock)UI.openMenu();}
  if(G.mode==='title')Title.tick();
  UI.tick(real);
@@ -82,7 +86,7 @@ function frame(now){requestAnimationFrame(frame);let real=Math.min(.05,(now-last
   else{ // 全画面が帯へ閉じる
    const s=1+e*.3;ctx.globalAlpha=1-ease.out(clamp(u*1.25));ctx.drawImage(T.snap,W/2-W/2*s,H/2-H/2*s,W*s,H*s);ctx.globalAlpha=1;drawFusumaClose(e);}
   if(u>=1)G.trans=null;}
- Input.endFrame();}
+ Input.endFrame(dt===0&&G.mode==='field'?HOLD_KEYS:null);}
 function drawFusuma(k){if(k<=0)return;const h=Math.round(STRIP_T*k);if(h>0){ctx.drawImage(BAR,0,STRIP_T-h,W,h,0,0,W,h);ctx.save();ctx.translate(0,H);ctx.scale(1,-1);ctx.drawImage(BAR,0,STRIP_T-h,W,h,0,0,W,h);ctx.restore();ctx.fillStyle='#cda451';ctx.fillRect(0,h,W,1);ctx.fillRect(0,H-h-1,W,1);}}
 function drawFusumaClose(k){}
 Game.exitAsk=async function(){Game.busy=true;const id=G.town.id;if(id==='shirogiri'&&(!has('letter')||!has('chi3'))){await N(has('letter')?'……まだ、話していない者がいる。千草は墓の前にいるはずだ。':'……山道の先が気にかかる。だがその前に、この村で見るべきものがある。');Game.busy=false;return;}const c=await ask(['旅立つ','もう少しここにいる']);Game.busy=false;if(c===0)Game.leaveTown();};

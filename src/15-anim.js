@@ -1,5 +1,5 @@
 // ── 動きの帳面:キーフレームは「溜めは短く、振り抜きは速く、残心は長く」 ──
-const READY=pose({hx:-1,hy:26.5,lean:.16,tw:-.28,hp:-.06,rx:13,ry:34,rz:3,lx:5,ly:30,lz:0,frx:10,fry:2,frz:4,flx:-11,fly:2,flz:-4,sw:.5,grip:1,shea:0});
+const READY=pose({hx:-1,hy:28,lean:.16,tw:-.28,hp:-.06,rx:13,ry:35,rz:3,lx:5,ly:30,lz:0,frx:10,fry:2,frz:4,flx:-11,fly:2,flz:-4,sw:.5,grip:1,shea:0});
 const K=(t,o,e,base)=>[t,pose(o,base||READY),e||ease.lin];
 const clip=(d,keys,extra)=>Object.assign({d,k:keys},extra||{});
 const CL={
@@ -38,16 +38,19 @@ const CL={
 };
 // 歩き・走りは手続きで作る(足跡の位相 φ を速さで進める)
 const _lp=new Float32Array(PL);
-function locomotion(A,speed,drawn,dt){const k=clamp(speed/170),mov=clamp(speed/30);A.phase=(A.phase||0)+speed*dt/(13+12*k);const f=A.phase,t=A.time;const base=drawn?READY:STAND;const q=_lp;q.set(base);
+function locomotion(A,speed,drawn,dt){const k=clamp(speed/170),mov=clamp(speed/30),m=clamp((k-.55)*3);A.phase=(A.phase||0)+speed*dt/(7.4+8.2*k+1.7*m);const f=A.phase,t=A.time;const base=drawn?READY:STAND;const q=_lp;q.set(base);
   const br=Math.sin(t*2.1),br2=Math.sin(t*1.05+.7);
   q[PI.hy]+=br*.32;q[PI.ry]+=br*.34+br2*.15;q[PI.ly]+=br*.3;q[PI.lean]+=br2*.006;q[PI.hp]+=Math.sin(t*.8)*.02;if(drawn)q[PI.sw]+=Math.sin(t*1.6)*.016;
-  if(mov>0){const stride=8+13*k,lift=2.4+7.2*k;const footX=(ph)=>Math.cos(ph)*stride+k*5,footY=(ph)=>{const s=Math.sin(ph);return 2+(s>0?s*lift:0);};
+  if(mov>0){const stride=7+10*k+1.5*m,lift=2.4+7.2*k;// 走りの足:接地は周期の35%だけで、残りは踵を尻へ蹴り上げてから膝を前へ運ぶ(両足が浮く瞬間ができる)
+      const cyc=(ph)=>{const u=ph/TAU;return u-Math.floor(u);},runX=(ph)=>{const u=cyc(ph);if(u<.35)return 7+20-40*u/.35;const v=(u-.35)/.65;return 7-20+40*Math.pow(v,1.3);},runY=(ph)=>{const u=cyc(ph);if(u<.35)return 2;const v=(u-.35)/.65;return 2+20*Math.sin(Math.PI*Math.pow(v,.87));};
+      const footX=(ph)=>lerp(Math.cos(ph)*stride+k*k*4,runX(ph),m),footY=(ph)=>{const s=-Math.sin(ph);return lerp(2+(s>0?s*lift:0),runY(ph),m);};
     const set=(i,v)=>{q[i]=lerp(q[i],v,mov);};
     set(PI.frx,footX(f));set(PI.fry,footY(f));set(PI.frz,3.2);set(PI.flx,footX(f+Math.PI));set(PI.fly,footY(f+Math.PI));set(PI.flz,-3.2);
-    set(PI.hy,29-k*3.2+Math.cos(f*2)*(.75+1.1*k));set(PI.hx,k*3.6);set(PI.lean,.05+.36*k+(drawn?.08:0));set(PI.tw,Math.cos(f)*(.15+.22*k)+(drawn?-.15:0));
+    const u2=f/TAU;set(PI.hy,lerp(31.5-k*3-Math.cos(f*2)*(.75+1.1*k),29.2+Math.cos(TAU*2*(u2-.425))*1.5,m));set(PI.hx,k*3.6+m*3);set(PI.lean,.05+.36*k+m*.18+m*Math.sin(f*2)*.035+(drawn?.08:0));set(PI.hp,-m*.34);set(PI.tw,Math.cos(f)*(.15+.22*k)*(1-m*.6)+(drawn?-.15:0));
     if(!drawn){const sw=Math.cos(f+Math.PI);set(PI.rx,3+sw*(4+9*k)+k*3);set(PI.ry,29+Math.abs(sw)*k*5+k*4);set(PI.lx,1+k*2);set(PI.ly,32+k*2);set(PI.lz,-7);}
-    else if(k>.45){const m=clamp((k-.45)*3);q[PI.rx]=lerp(q[PI.rx],-7,m);q[PI.ry]=lerp(q[PI.ry],31,m);q[PI.rz]=lerp(q[PI.rz],7,m);q[PI.sw]=lerp(q[PI.sw],2.82,m);q[PI.grip]=lerp(1,0,m);const sw=Math.cos(f);q[PI.lx]=lerp(q[PI.lx],8+sw*7,m);q[PI.ly]=lerp(q[PI.ly],33,m);q[PI.lz]=-6;}
     else{q[PI.rx]+=Math.cos(f)*1.2;q[PI.ry]+=Math.cos(f*2)*.8;}
+    // 走り:上体を前へ倒し、両腕を後ろへ流す
+    if(m>0){const ln=q[PI.lean],cx=q[PI.hx]+Math.sin(ln)*17,cy=q[PI.hy]+Math.cos(ln)*17,bob=Math.sin(f*2)*1.5;q[PI.rx]=lerp(q[PI.rx],cx-19,m);q[PI.ry]=lerp(q[PI.ry],cy-5+bob,m);q[PI.rz]=lerp(q[PI.rz],10,m);q[PI.lx]=lerp(q[PI.lx],cx-18,m);q[PI.ly]=lerp(q[PI.ly],cy-3-bob,m);q[PI.lz]=lerp(q[PI.lz],-10,m);if(drawn){q[PI.sw]=lerp(q[PI.sw],2.95,m);q[PI.grip]=lerp(q[PI.grip],0,clamp(m*2));}}
   }
   return q;}
 const _sp=new Float32Array(PL);

@@ -61,7 +61,7 @@ class Town{constructor(id){const d=TOWN_DEF[id];this.id=id;this.d=d;this.time=0;
     this.solidW=[[W2.x0,0,W2.x1,W2.bridge[0]],[W2.x0,W2.bridge[1],W2.x1,TH]];}
   return p.flush();}
  blocked(x,y){if(x<14||x>TW-14||y<34||y>TH-6)return true;for(const s of this.solid)if(x>s[0]&&x<s[2]&&y>s[1]&&y<s[3])return true;if(this.solidW)for(const s of this.solidW)if(x>s[0]&&x<s[2]&&y>s[1]&&y<s[3])return true;return false;}
- update(dt){this.time+=dt;const f=this.pl,lock=G.lock>0;let dx=0,dy=0;if(!lock){if(Input.down.right)dx++;if(Input.down.left)dx--;if(Input.down.down)dy++;if(Input.down.up)dy--;}const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;const run=Input.down.run||G.autorun||Input.touchRun,spd=(dx||dy)?(run?138:72):0;f.vx=lerp(f.vx,dx*spd,1-Math.exp(-dt*12));f.vy=lerp(f.vy,dy*spd*.82,1-Math.exp(-dt*12));
+ update(dt){this.time+=dt;const f=this.pl,lock=G.lock>0;let dx=0,dy=0;if(!lock){if(Input.down.right)dx++;if(Input.down.left)dx--;if(Input.down.down)dy++;if(Input.down.up)dy--;}const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;const run=Input.down.run||G.autorun||Input.touchRun,spd=(dx||dy)?(run?180:72):0;f.vx=lerp(f.vx,dx*spd,1-Math.exp(-dt*12));f.vy=lerp(f.vy,dy*spd*.82,1-Math.exp(-dt*12));
   const nx=f.x+f.vx*dt,ny=f.y+f.vy*dt;if(!this.blocked(nx,f.y))f.x=nx;else f.vx=0;if(!this.blocked(f.x,ny))f.y=ny;else f.vy=0;
   if(!lock&&Input.hit('autorun')){G.autorun=!G.autorun;UI.toast(G.autorun?'常に走る':'歩きを基本にする');}if(!lock&&Input.hit('item'))useDango();
   const v=Math.hypot(f.vx,f.vy);if(v>6){const want=Math.atan2(f.vy,f.vx);let d=want-f.yaw;d=((d+Math.PI)%TAU+TAU)%TAU-Math.PI;f.yaw+=d*(1-Math.exp(-dt*12));}

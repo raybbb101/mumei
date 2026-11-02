@@ -149,7 +149,7 @@ class Pix{constructor(w,h,tile=false){this.w=w;this.h=h;this.tile=tile;this.c=mk
 // ── 入力
 const Input={down:{},pressed:{},released:{},map:{ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',Space:'jump',ShiftLeft:'run',ShiftRight:'run',KeyJ:'slash',KeyZ:'slash',KeyK:'iai',KeyX:'iai',KeyL:'guard',KeyC:'guard',KeyI:'dodge',KeyV:'dodge',KeyE:'act',Enter:'act',KeyM:'menu',Tab:'menu',Escape:'menu',KeyR:'autorun',KeyQ:'item'},
   press(a){if(!this.down[a]){this.pressed[a]=true;}this.down[a]=true;},release(a){if(this.down[a])this.released[a]=true;this.down[a]=false;},
-  endFrame(){this.pressed={};this.released={};},hit(a){return !!this.pressed[a];}};
+  endFrame(hold){const q={};if(hold)for(const a of hold)if(this.pressed[a])q[a]=true;this.pressed=q;this.released={};},hit(a){return !!this.pressed[a];}};
 addEventListener('keydown',e=>{const a=Input.map[e.code];if(a){e.preventDefault();if(!e.repeat)Input.press(a);}Audio2.unlock();});
 addEventListener('keyup',e=>{const a=Input.map[e.code];if(a){e.preventDefault();Input.release(a);}});
 addEventListener('blur',()=>{for(const k in Input.down)Input.down[k]=false;});
@@ -190,7 +190,10 @@ const Audio2={ctx:null,master:null,on:true,music:null,
 // 体の各部を球を引き伸ばしたカプセルとして塗り、Zバッファ・法線・段階トーン・リムライト・輪郭線を掛ける。
 // 手足はIKで解くので毎フレーム違う絵になり、コマ割りではなく60fpsで滑らかに動く。
 const BW=220,BH=190;
-const rigCan=mkCanvas(BW,BH),rigG=rigCan.getContext('2d'),rigImg=rigG.createImageData(BW,BH);
+// Safari は drawImage の元を後から読むことがあるため、同じフレームで下書きキャンバスを使い回さない
+const rigPool=[];let rigPoolI=0;
+const rigNext=()=>{if(rigPoolI>=rigPool.length){const c=mkCanvas(BW,BH);rigPool.push({c,g:c.getContext('2d')});}return rigPool[rigPoolI++];},rigBeginFrame=()=>{rigPoolI=0;};
+const rigImg=mkCanvas(1,1).getContext('2d').createImageData(BW,BH);
 const CB=new Uint32Array(rigImg.data.buffer),ZB=new Float32Array(BW*BH);ZB.fill(-1e9);
 let dirty=[0,0,0,0];
 const LE=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
@@ -240,7 +243,8 @@ function ik(a,c,l1,l2,pole){let dx=c[0]-a[0],dy=c[1]-a[1],dz=c[2]-a[2],d=Math.hy
 const PN=['hx','hy','hz','lean','tw','hp','hy2','rx','ry','rz','lx','ly','lz','frx','fry','frz','flx','fly','flz','sw','swz','grip','shea','armor'];
 const PI={};PN.forEach((n,i)=>PI[n]=i);const PL=PN.length;
 function pose(o,base){const p=new Float32Array(PL);if(base)p.set(base);for(const k in o)p[PI[k]]=o[k];return p;}
-const STAND=pose({hx:0,hy:29,hz:0,lean:.04,tw:.12,hp:0,hy2:0,rx:3,ry:29,rz:8.5,lx:0,ly:32,lz:-7.5,frx:1.5,fry:2,frz:3.8,flx:-2,fly:2,flz:-3.8,sw:-1.3,swz:0,grip:0,shea:1});
+const LEG=14.8;
+const STAND=pose({hx:0,hy:32.4,hz:0,lean:.04,tw:.12,hp:0,hy2:0,rx:3,ry:32.4,rz:8.5,lx:0,ly:35.4,lz:-7.5,frx:1,fry:2,frz:3.8,flx:-1.5,fly:2,flz:-3.8,sw:-1.3,swz:0,grip:0,shea:1});
 // ── 人物1体を焼く
 function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p=A.pose;
   R.yaw=o.yaw===undefined?.45:o.yaw;R.pitch=o.pitch||0;R.mirror=!!o.mirror;R.s=s;R.ox=o.ox===undefined?BW/2:o.ox;R.oy=o.oy===undefined?BH-22:o.oy;R.cy=Math.cos(R.yaw);R.sy=Math.sin(R.yaw);R.cp=Math.cos(R.pitch);R.sp=Math.sin(R.pitch);R.flash=A.flash||0;R.dis=A.dissolve||0;R.time=A.time||0;
@@ -250,7 +254,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   const hl=ln*.55+g('hp'),head=[neck[0]+Math.sin(hl)*6.2,neck[1]+Math.cos(hl)*6.2,neck[2]];
   const SW=6.6*w,shR=[chest[0]+Math.sin(tw)*SW-sl*.5,chest[1]+1,chest[2]+Math.cos(tw)*SW],shL=[chest[0]-Math.sin(tw)*SW,chest[1]+1,chest[2]-Math.cos(tw)*SW];
   const hipR=[hip[0]+Math.sin(tw*.4)*4,hip[1]-1,hip[2]+3.6],hipL=[hip[0]-Math.sin(tw*.4)*4,hip[1]-1,hip[2]-3.6];
-  const [kR,fR]=ik(hipR,[g('frx'),g('fry'),g('frz')],15.2,15.2,[1,.1,.15]),[kL,fL]=ik(hipL,[g('flx'),g('fly'),g('flz')],15.2,15.2,[1,.1,-.15]);
+  const [kR,fR]=ik(hipR,[g('frx'),g('fry'),g('frz')],LEG,LEG,[1,.1,.15]),[kL,fL]=ik(hipL,[g('flx'),g('fly'),g('flz')],LEG,LEG,[1,.1,-.15]);
   const sa=g('sw'),swz=g('swz'),dir=[Math.cos(sa)*Math.cos(swz),Math.sin(sa)*Math.cos(swz),Math.sin(swz)];
   const handT=[g('rx'),g('ry'),g('rz')];let handLT=[g('lx'),g('ly'),g('lz')];const grip=g('grip');
   if(grip>0){const gp=[handT[0]-dir[0]*6,handT[1]-dir[1]*6,handT[2]-dir[2]*6];handLT=[lerp(handLT[0],gp[0],grip),lerp(handLT[1],gp[1],grip),lerp(handLT[2],gp[2],grip)];}
@@ -272,7 +276,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   // 脚
   if(S.robe){const hemR=[lerp(kR[0],fR[0],.75),lerp(kR[1],fR[1],.85),fR[2]],hemL=[lerp(kL[0],fL[0],.75),lerp(kL[1],fL[1],.85),fL[2]];seg(hipR,hemR,5*w,4.4*w,M.leg,S.legPat||4);seg(hipL,hemL,5*w,4.4*w,M.leg,S.legPat||4);const mid=[(hemR[0]+hemL[0])/2,(hemR[1]+hemL[1])/2,0];seg(hip,mid,6.2*w,5.6*w,M.leg,S.legPat||4);}
   else if(S.tight){seg(hipR,kR,4.8,3.4,M.leg);seg(kR,fR,3.3,2.5,M.leg);seg(hipL,kL,4.8,3.4,M.leg);seg(kL,fL,3.3,2.5,M.leg);seg([fR[0],fR[1]+6,fR[2]],[fR[0],fR[1]+11,fR[2]],2.9,3.2,M.wrap||M.leg,3,{bands:4});seg([fL[0],fL[1]+6,fL[2]],[fL[0],fL[1]+11,fL[2]],2.9,3.2,M.wrap||M.leg,3,{bands:4});}
-  else{const hem=(k,f)=>[lerp(k[0],f[0],.8),lerp(k[1],f[1],.8)+.5,f[2]];seg(hipR,kR,4.9*w,5*w,M.leg,1);seg(kR,hem(kR,fR),5*w,6.1*w,M.leg,1);seg(hipL,kL,4.9*w,5*w,M.leg,1);seg(kL,hem(kL,fL),5*w,6.1*w,M.leg,1);seg(hip,[(kR[0]+kL[0])/2,(kR[1]+kL[1])/2,0],6.2*w,4.6*w,M.leg,1);}
+  else{const hem=(k,f)=>[lerp(k[0],f[0],.8),lerp(k[1],f[1],.8)+.5,f[2]];seg(hipR,kR,4.9*w,5*w,M.leg,1);seg(kR,hem(kR,fR),4.6*w,5.3*w,M.leg,1);seg(hipL,kL,4.9*w,5*w,M.leg,1);seg(kL,hem(kL,fL),4.6*w,5.3*w,M.leg,1);seg(hip,[(kR[0]+kL[0])/2,(kR[1]+kL[1])/2,0],6.2*w,4.6*w,M.leg,1);}
   // 足(草履)
   const foot=(f,zs)=>{const toe=[f[0]+5.2,Math.max(.8,f[1]-1.2),f[2]];seg([f[0]-1.4,f[1]-.6,f[2]],toe,1.9,1.5,M.foot||'skin');seg([f[0]-1.8,f[1]-2,f[2]],[toe[0]+.4,toe[1]-1.1,f[2]],1.5,1.1,M.sandal||'straw',7);};foot(fR);foot(fL);
   // 腕+袖
@@ -305,7 +309,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   // 太刀筋
   if(A.trail&&A.trail.length>1)drawTrail(A.trail,sx,sy,o);
   const w2=x1-x0+1,h2=y1-y0+1;
-  if(w2>0&&h2>0){rigG.putImageData(rigImg,0,0,x0,y0,w2,h2);ctx.drawImage(rigCan,x0,y0,w2,h2,Math.round(sx-R.ox+x0),Math.round(sy-R.oy+y0),w2,h2);
+  if(w2>0&&h2>0){const rc=rigNext();rc.g.putImageData(rigImg,0,0,x0,y0,w2,h2);ctx.drawImage(rc.c,x0,y0,w2,h2,Math.round(sx-R.ox+x0),Math.round(sy-R.oy+y0),w2,h2);
     for(let y=y0;y<=y1;y++){const a=y*BW;CB.fill(0,a+x0,a+x1+1);ZB.fill(-1e9,a+x0,a+x1+1);}}
   // 刀身の先端を返す(太刀筋用)
   return{hand:hR,dir};
@@ -386,7 +390,7 @@ ST.spirit=npc({mats:{skin:'spirit',hair:'spirit',body:'spirit',obi:'spirit',coll
 function makeAvatar(styleName){const style=ST[styleName];return{style,pose:STAND.slice(),chains:mkChains(style),time:Math.random()*10,flash:0,dissolve:0,trail:[]};}
 
 // ── 動きの帳面:キーフレームは「溜めは短く、振り抜きは速く、残心は長く」 ──
-const READY=pose({hx:-1,hy:26.5,lean:.16,tw:-.28,hp:-.06,rx:13,ry:34,rz:3,lx:5,ly:30,lz:0,frx:10,fry:2,frz:4,flx:-11,fly:2,flz:-4,sw:.5,grip:1,shea:0});
+const READY=pose({hx:-1,hy:28,lean:.16,tw:-.28,hp:-.06,rx:13,ry:35,rz:3,lx:5,ly:30,lz:0,frx:10,fry:2,frz:4,flx:-11,fly:2,flz:-4,sw:.5,grip:1,shea:0});
 const K=(t,o,e,base)=>[t,pose(o,base||READY),e||ease.lin];
 const clip=(d,keys,extra)=>Object.assign({d,k:keys},extra||{});
 const CL={
@@ -425,16 +429,19 @@ const CL={
 };
 // 歩き・走りは手続きで作る(足跡の位相 φ を速さで進める)
 const _lp=new Float32Array(PL);
-function locomotion(A,speed,drawn,dt){const k=clamp(speed/170),mov=clamp(speed/30);A.phase=(A.phase||0)+speed*dt/(13+12*k);const f=A.phase,t=A.time;const base=drawn?READY:STAND;const q=_lp;q.set(base);
+function locomotion(A,speed,drawn,dt){const k=clamp(speed/170),mov=clamp(speed/30),m=clamp((k-.55)*3);A.phase=(A.phase||0)+speed*dt/(7.4+8.2*k+1.7*m);const f=A.phase,t=A.time;const base=drawn?READY:STAND;const q=_lp;q.set(base);
   const br=Math.sin(t*2.1),br2=Math.sin(t*1.05+.7);
   q[PI.hy]+=br*.32;q[PI.ry]+=br*.34+br2*.15;q[PI.ly]+=br*.3;q[PI.lean]+=br2*.006;q[PI.hp]+=Math.sin(t*.8)*.02;if(drawn)q[PI.sw]+=Math.sin(t*1.6)*.016;
-  if(mov>0){const stride=8+13*k,lift=2.4+7.2*k;const footX=(ph)=>Math.cos(ph)*stride+k*5,footY=(ph)=>{const s=Math.sin(ph);return 2+(s>0?s*lift:0);};
+  if(mov>0){const stride=7+10*k+1.5*m,lift=2.4+7.2*k;// 走りの足:接地は周期の35%だけで、残りは踵を尻へ蹴り上げてから膝を前へ運ぶ(両足が浮く瞬間ができる)
+      const cyc=(ph)=>{const u=ph/TAU;return u-Math.floor(u);},runX=(ph)=>{const u=cyc(ph);if(u<.35)return 7+20-40*u/.35;const v=(u-.35)/.65;return 7-20+40*Math.pow(v,1.3);},runY=(ph)=>{const u=cyc(ph);if(u<.35)return 2;const v=(u-.35)/.65;return 2+20*Math.sin(Math.PI*Math.pow(v,.87));};
+      const footX=(ph)=>lerp(Math.cos(ph)*stride+k*k*4,runX(ph),m),footY=(ph)=>{const s=-Math.sin(ph);return lerp(2+(s>0?s*lift:0),runY(ph),m);};
     const set=(i,v)=>{q[i]=lerp(q[i],v,mov);};
     set(PI.frx,footX(f));set(PI.fry,footY(f));set(PI.frz,3.2);set(PI.flx,footX(f+Math.PI));set(PI.fly,footY(f+Math.PI));set(PI.flz,-3.2);
-    set(PI.hy,29-k*3.2+Math.cos(f*2)*(.75+1.1*k));set(PI.hx,k*3.6);set(PI.lean,.05+.36*k+(drawn?.08:0));set(PI.tw,Math.cos(f)*(.15+.22*k)+(drawn?-.15:0));
+    const u2=f/TAU;set(PI.hy,lerp(31.5-k*3-Math.cos(f*2)*(.75+1.1*k),29.2+Math.cos(TAU*2*(u2-.425))*1.5,m));set(PI.hx,k*3.6+m*3);set(PI.lean,.05+.36*k+m*.18+m*Math.sin(f*2)*.035+(drawn?.08:0));set(PI.hp,-m*.34);set(PI.tw,Math.cos(f)*(.15+.22*k)*(1-m*.6)+(drawn?-.15:0));
     if(!drawn){const sw=Math.cos(f+Math.PI);set(PI.rx,3+sw*(4+9*k)+k*3);set(PI.ry,29+Math.abs(sw)*k*5+k*4);set(PI.lx,1+k*2);set(PI.ly,32+k*2);set(PI.lz,-7);}
-    else if(k>.45){const m=clamp((k-.45)*3);q[PI.rx]=lerp(q[PI.rx],-7,m);q[PI.ry]=lerp(q[PI.ry],31,m);q[PI.rz]=lerp(q[PI.rz],7,m);q[PI.sw]=lerp(q[PI.sw],2.82,m);q[PI.grip]=lerp(1,0,m);const sw=Math.cos(f);q[PI.lx]=lerp(q[PI.lx],8+sw*7,m);q[PI.ly]=lerp(q[PI.ly],33,m);q[PI.lz]=-6;}
     else{q[PI.rx]+=Math.cos(f)*1.2;q[PI.ry]+=Math.cos(f*2)*.8;}
+    // 走り:上体を前へ倒し、両腕を後ろへ流す
+    if(m>0){const ln=q[PI.lean],cx=q[PI.hx]+Math.sin(ln)*17,cy=q[PI.hy]+Math.cos(ln)*17,bob=Math.sin(f*2)*1.5;q[PI.rx]=lerp(q[PI.rx],cx-19,m);q[PI.ry]=lerp(q[PI.ry],cy-5+bob,m);q[PI.rz]=lerp(q[PI.rz],10,m);q[PI.lx]=lerp(q[PI.lx],cx-18,m);q[PI.ly]=lerp(q[PI.ly],cy-3-bob,m);q[PI.lz]=lerp(q[PI.lz],-10,m);if(drawn){q[PI.sw]=lerp(q[PI.sw],2.95,m);q[PI.grip]=lerp(q[PI.grip],0,clamp(m*2));}}
   }
   return q;}
 const _sp=new Float32Array(PL);
@@ -597,16 +604,16 @@ const Fx={parts:[],decals:[],sheets:{},anims:[],floats:[],lights:[],ghosts:[],
   g.globalCompositeOperation='lighter';for(const l of this.lights){const u=1-l.age/l.life,c=glow(l.c,48),r=l.r*(.7+.3*u);g.globalAlpha=u;g.drawImage(c,l.x+ox-r,l.y-r,r*2,r*2);}g.globalAlpha=1;g.globalCompositeOperation='source-over';}};
 // ── ゲーム全体の状態
 const G={mode:'title',time:0,lock:0,freeze:0,slow:0,slowK:1,shake:0,shakeDir:[1,0],zoom:0,flash:0,flashC:'#fff',cam:0,camMin:0,camMax:6000,en:0,ren:0,coin:0,dango:1,hpMax:100,atkBonus:0,skills:{},flags:{},quests:{},mems:[],stage:0,weather:null,world:null,enemies:[],shots:[],props:[],fieldNpcs:[],enc:null,cleared:{},kills:0,autorun:false,town:null,afterEnc:null};
-const SKILLS={tsubame:{n:'燕返し',d:'三の太刀のあと、もう一度「斬」。返す刃で二度斬る。'},ryusui:{n:'流水',d:'弾きの間合いが広がり、弾いた直後の「斬」が必ず重い一太刀になる。'},issen:{n:'一閃',d:'居合を溜め切ると、間合いが倍に伸び、触れた敵の体勢を崩す。'},zanshin:{n:'残心',d:'敵を斬り伏せるたびに気が満ち、命がわずかに戻る。'}};
+const SKILLS={tsubame:{n:'燕返し',d:'三の太刀のあと、もう一度「斬」。返す刃で二度斬る。'},ryusui:{n:'流水',d:'弾きの受付が広がり、「極」でなくても、弾いた直後の「斬」が重い一太刀になる。'},issen:{n:'一閃',d:'居合を溜め切ると、間合いが倍に伸び、触れた敵の体勢を崩す。'},zanshin:{n:'残心',d:'敵を斬り伏せるたびに気が満ち、命がわずかに戻る。'}};
 const SKILL_HELP=()=>Object.keys(G.skills);
 // ── 敵の帳面
 const ENEMY={
- ronin:{name:'はぐれ浪人',style:'ronin',hp:34,pos:22,spd:58,atk:['eSlash'],space:46,cd:[1.3,2.5],coin:3},
- karasu:{name:'鴉面',style:'karasu',hp:42,pos:26,spd:74,atk:['eSlash','eSlash','eDash'],space:48,cd:[1,2],coin:5,aspd:1.1},
- ashigaru:{name:'足軽',style:'ashigaru',hp:38,pos:26,spd:52,atk:['eThrust'],space:84,cd:[1.4,2.6],coin:4,drawn:true},
- shinobi:{name:'影衆',style:'shinobi',hp:28,pos:18,spd:112,atk:['eDash','eThrow','eThrow'],space:92,cd:[.9,1.9],coin:5,aspd:1.08,jumpy:true},
- oni:{name:'鬼武者',style:'oni',hp:120,pos:70,spd:44,atk:['eSlam','eSlash'],space:58,cd:[1.4,2.4],coin:14,armor:true,aspd:.94},
- spirit:{name:'怨霊武者',style:'spirit',hp:46,pos:30,spd:68,atk:['eSlash','eDash'],space:46,cd:[1,1.9],coin:6,aspd:1.1,light:'#7fdcf4'},
+ ronin:{name:'はぐれ浪人',style:'ronin',hp:52,pos:22,spd:58,atk:['eSlash'],space:46,cd:[1.3,2.5],coin:3},
+ karasu:{name:'鴉面',style:'karasu',hp:64,pos:26,spd:74,atk:['eSlash','eSlash','eDash'],space:48,cd:[1,2],coin:5,aspd:1.1},
+ ashigaru:{name:'足軽',style:'ashigaru',hp:56,pos:26,spd:52,atk:['eThrust'],space:84,cd:[1.4,2.6],coin:4,drawn:true},
+ shinobi:{name:'影衆',style:'shinobi',hp:42,pos:18,spd:112,atk:['eDash','eThrow','eThrow'],space:92,cd:[.9,1.9],coin:5,aspd:1.08,jumpy:true},
+ oni:{name:'鬼武者',style:'oni',hp:150,pos:70,spd:44,atk:['eSlam','eSlash'],space:58,cd:[1.4,2.4],coin:14,armor:true,aspd:.94},
+ spirit:{name:'怨霊武者',style:'spirit',hp:68,pos:30,spd:68,atk:['eSlash','eDash'],space:46,cd:[1,1.9],coin:6,aspd:1.1,light:'#7fdcf4'},
  // 将
  oboro:{name:'鴉の頭目・朧',style:'oboro',hp:210,pos:80,spd:120,atk:['eDash','eThrow','eSlash','eDash'],space:70,cd:[.6,1.3],coin:50,boss:true,aspd:1.1,jumpy:true},
  oniwa:{name:'槍鬼・鬼庭剛右衛門',style:'oni',hp:360,pos:130,spd:52,atk:['eSlam','eSlash','eSlam'],space:62,cd:[.9,1.7],coin:80,boss:true,armor:true,scale:1.14},
@@ -614,7 +621,7 @@ const ENEMY={
  takamaru:{name:'藤堂鷹丸',style:'takamaru',hp:520,pos:170,spd:104,atk:['eSlash','eDash','eSlash','eThrust2'],space:52,cd:[.45,1.05],coin:0,boss:true,aspd:1.26,combo:.55,parrier:true},
  katsuragi:{name:'老剣士・葛城',style:'katsuragi',hp:90,pos:60,spd:60,atk:['eSlash','eSlash'],space:48,cd:[1,1.8],coin:0,boss:true,aspd:.98,spar:true},
  mukuu:{name:'剣僧・無空',style:'mukuu',hp:150,pos:90,spd:82,atk:['eSlash','eDash','eThrust2'],space:52,cd:[.8,1.5],coin:0,boss:true,aspd:1.08,spar:true},
- bandit:{name:'野盗',style:'ronin',hp:26,pos:18,spd:62,atk:['eSlash'],space:46,cd:[1.6,3],coin:4},
+ bandit:{name:'野盗',style:'ronin',hp:38,pos:18,spd:62,atk:['eSlash'],space:46,cd:[1.6,3],coin:4},
 };
 CL.eThrust2=clip(.8,[K(0,{}),K(.3,{hx:-8,hy:24,lean:-.15,tw:.8,rx:-4,ry:37,rz:4,sw:.02,frx:7,flx:-15},ease.out),K(.4,{hx:-9,hy:24,lean:-.18,tw:.82,rx:-5,ry:37,sw:.02,frx:7,flx:-15}),K(.45,{hx:13,hy:25,lean:.55,tw:-.85,rx:29,ry:38,rz:3,sw:.01,frx:25,flx:-13},ease.in3),K(.6,{hx:13,hy:25,lean:.52,tw:-.85,rx:28,ry:37,sw:.01,frx:25,flx:-13}),K(.8,{},ease.io)],{active:[.41,.5],tele:[0,.4],reach:62,dmg:13,lunge:70,lungeAt:[.4,.46],sfx:'swing2',red:true,hitH:[12,60],thrust:true});
 const ACTOR_S=1.12;
@@ -631,24 +638,29 @@ function slowmo(t,k=.25){G.slow=Math.max(G.slow,t);G.slowK=k;}
 function shake(a,dir){G.shake=Math.max(G.shake,a);G.shakeDir=dir||[1,0];}
 function flash(a,c='#ffffff'){G.flash=Math.max(G.flash,a);G.flashC=c;}
 function bladeTip(F){const A=F.av,s=(F.def&&F.def.scale||1)*ACTOR_S*(A.style.scale||1);const b=bladePts(A,{yaw:.45,mirror:F.face<0,scale:(F.def&&F.def.scale||1)*ACTOR_S});return[F.x+b[0],BASE_Y+F.depth+F.y+b[1]];}
+function autoFace(r){const f=P.f,k=(Input.down.right?1:0)-(Input.down.left?1:0);if(k)f.face=k;else{const e=nearestEnemy(r);if(e)f.face=Math.sign(e.x-f.x)||f.face;}}
+function startGuard(){const A=P.f.av,fresh=P.gbuf>0&&P.parryCd<=0;P.gbuf=0;P.state='guard';P.guardT=fresh?0:.5;if(fresh)P.parryCd=.38;P.drawn=true;autoFace(220);play(A,CL.parry,1,.025);}
+function enterIai(){const f=P.f,A=f.av;P.state='iai';P.iaiT=0;P.t=0;P.iaiFull=false;P.drawn=true;autoFace(260);A.clip=null;A.holdPose=pose({hx:-3,hy:22,lean:.46,tw:.52,hp:-.22,rx:5,ry:30,rz:-1,lx:1,ly:31,lz:-6,frx:11,flx:-13,sw:-.1,grip:0,shea:1});A.from=A.pose.slice();A.blendT=A.blend=.08;Audio2.sfx('step');}
 function startAttack(){const f=P.f,air=!P.ground;let c;if(air)c=CL.air;else{if(P.counter>0){c=CL.slash3;P.combo=0;}else{P.combo=P.combo%(G.skills.tsubame?4:3);c=[CL.slash1,CL.slash2,CL.slash3,CL.tsubame][P.combo];P.combo++;}}
-  P.state='attack';P.drawn=true;P.atk=c;P.hitset=new Set();P.hitPhase=0;P.buf=0;P.sheathT=0;play(f.av,c,1,.025);P.atkFired=false;
-  const dirKey=(Input.down.right?1:0)-(Input.down.left?1:0);if(dirKey)f.face=dirKey;else{const e=nearestEnemy(90);if(e)f.face=Math.sign(e.x-f.x)||f.face;}}
+  P.sae=!!P.saeNext;P.saeNext=false;P.saeTried=false;P.state='attack';P.drawn=true;P.atk=c;P.hitset=new Set();P.hitPhase=0;P.buf=0;P.sheathT=0;play(f.av,c,1,.025);P.atkFired=false;
+  autoFace(130);if(P.sae){P.ki=Math.min(100,P.ki+4);Audio2.tone(1980,.05,.05,'triangle');}}
 function nearestEnemy(r){let b=null,bd=r;for(const e of G.enemies){if(e.state==='dead')continue;const d=Math.abs(e.x-P.f.x);if(d<bd){bd=d;b=e;}}return b;}
 function playerUpdate(dt){const f=P.f,A=f.av,lock=G.lock>0;let dir=0;const inp=lock?{}:Input.down;if(inp.right)dir++;if(inp.left)dir--;
   const hit=a=>!lock&&Input.hit(a);
   if(hit('autorun')){G.autorun=!G.autorun;UI.toast(G.autorun?'常に走る':'歩きを基本にする');}
   if(hit('item'))useDango();
   P.inv=Math.max(0,P.inv-dt);P.counter=Math.max(0,P.counter-dt);P.ki=Math.min(100,P.ki+dt*7);
-  if(hit('slash'))P.buf=.2;P.buf=Math.max(0,P.buf-dt);
+  P.parryCd=Math.max(0,(P.parryCd||0)-dt);P.gbuf=Math.max(0,(P.gbuf||0)-dt);if(hit('guard'))P.gbuf=.14;
+  if(hit('slash')){P.buf=.28;if(P.state==='attack'&&!P.saeTried){const c=P.atk;P.saeTried=true;P.saeNext=A.ct>=c.active[1]-.03&&A.ct<=c.active[1]+.13;}}P.buf=Math.max(0,P.buf-dt);
+  if(hit('iai')&&P.ki<8&&!G.noCombat)Fx.float(f.x,BASE_Y-82,'気が足りぬ','#9cc8e8',11);
   const wasGround=P.ground;const running=(inp.run||G.autorun||Input.touchRun);
   switch(P.state){
-   case'free':{const target=dir*(running?172:66);f.vx=lerp(f.vx,target,1-Math.exp(-dt*(dir?10:14)));if(dir)f.face=dir;
+   case'free':{P.comboT=(P.comboT||0)-dt;if(P.comboT<=0)P.combo=0;const target=dir*(running?250:66);f.vx=lerp(f.vx,target,1-Math.exp(-dt*(dir?10:14)));if(dir)f.face=dir;
      if(hit('jump')&&P.ground){f.vy=-286;P.ground=false;Fx.dust(f.x,BASE_Y,6);Audio2.sfx('dodge');}
      if(P.buf>0&&!G.noCombat){startAttack();break;}
      if(hit('dodge')&&P.ki>=10&&P.ground){P.state='dodge';P.ki-=10;P.dodgeDir=dir||-f.face;P.t=0;P.inv=.27;P.drawn=true;play(A,CL.dodge,1,.02);if(P.dodgeDir!==f.face)A.pose[PI.lean]*=-1;Audio2.sfx('dodge');Fx.dust(f.x,BASE_Y,7,P.dodgeDir);break;}
-     if(Input.down.guard&&!lock&&P.ground&&!G.noCombat){P.state='guard';P.guardT=0;P.drawn=true;play(A,CL.parry,1,.025);P.guardHeld=true;break;}
-     if(Input.down.iai&&!lock&&P.ground&&!G.noCombat&&P.ki>=8){P.state='iai';P.iaiT=0;P.t=0;A.clip=null;A.holdPose=pose({hx:-3,hy:22,lean:.46,tw:.52,hp:-.22,rx:5,ry:30,rz:-1,lx:1,ly:31,lz:-6,frx:11,flx:-13,sw:-.1,grip:0,shea:1});A.from=A.pose.slice();A.blendT=A.blend=.08;Audio2.sfx('step');break;}
+     if((P.gbuf>0||Input.down.guard)&&!lock&&P.ground&&!G.noCombat){startGuard();break;}
+     if(Input.down.iai&&!lock&&P.ground&&!G.noCombat&&P.ki>=8){enterIai();break;}
      if(P.drawn&&!G.enemies.length&&!lock){P.sheathT+=dt;if(P.sheathT>1.5&&P.ground&&Math.abs(f.vx)<20){P.state='noto';play(A,CL.noto,1,.08);P.t=0;P.noto=false;}}
      break;}
    case'attack':{const c=P.atk,t=A.ct;f.vx*=Math.exp(-dt*12);
@@ -657,17 +669,18 @@ function playerUpdate(dt){const f=P.f,A=f.av,lock=G.lock>0;let dir=0;const inp=l
      if(c.multi&&!P.hitPhase&&t>c.active[0]+(c.active[1]-c.active[0])*.55){P.hitPhase=1;P.hitset=new Set();Audio2.sfx('swing');}
      if(t>=c.active[0]&&t<=c.active[1])swordHits(c);
      if(t>=c.active[0]-.03&&t<=c.active[1]+.03)trailStep(f,0,true);
-     const cancel=t>c.active[1]+.04;if(cancel&&P.buf>0&&(P.ground||c===CL.air)){if(P.ground)startAttack();}
+     const cancel=t>c.active[1]+.02;if(cancel&&P.buf>0&&(P.ground||c===CL.air)){if(P.ground)startAttack();}
      else if(cancel&&hit('dodge')&&P.ki>=10&&P.ground){P.state='dodge';P.ki-=10;P.dodgeDir=dir||-f.face;P.t=0;P.inv=.27;play(A,CL.dodge,1,.02);Audio2.sfx('dodge');Fx.dust(f.x,BASE_Y,7,P.dodgeDir);}
-     else if(cancel&&Input.down.guard&&!lock&&P.ground){P.state='guard';P.guardT=0;play(A,CL.parry,1,.025);}
-     if(!A.clip){P.state='free';P.comboT=0;P.combo=P.buf>0?P.combo:0;}
+     else if(cancel&&(P.gbuf>0||Input.down.guard)&&!lock&&P.ground)startGuard();
+     else if(cancel&&Input.down.iai&&!lock&&P.ground&&P.ki>=8)enterIai();
+     if(!A.clip&&P.state==='attack'){P.state='free';P.comboT=.42;}
      break;}
-   case'guard':{P.guardT+=dt;f.vx*=Math.exp(-dt*14);if(A.clip&&A.ct>.3)A.ct=.2;if(!Input.down.guard||lock){P.state='free';stopClip(A,.1);}break;}
-   case'clash':{f.vx*=Math.exp(-dt*7);if(!A.clip)P.state='free';if(P.buf>0&&A.ct>.05){startAttack();}break;}
-   case'iai':{P.t+=dt;P.iaiT=P.t;f.vx*=Math.exp(-dt*14);const full=P.t>.55;if(full&&!P.iaiFull){P.iaiFull=true;Audio2.sfx('select');Fx.light(f.x+f.face*4,BASE_Y-30,'#c8e8ff',36,.3);}if(!P.iaiFull&&Math.random()<dt*14)Fx.sparks(f.x+rand(-14,14),BASE_Y-rand(0,16),1,1,{spread:.4,up:-1.57,v0:20,v1:60,g:-40,life:.4,c:'#a8d8ff'});
+   case'guard':{P.guardT+=dt;f.vx*=Math.exp(-dt*14);if(A.clip&&A.ct>.3)A.ct=.2;if(lock||(P.guardT>=.26&&!Input.down.guard)){P.state='free';stopClip(A,.1);}break;}
+   case'clash':{f.vx*=Math.exp(-dt*7);if(!A.clip)P.state='free';if(P.buf>0&&A.ct>.05){startAttack();}else if(P.gbuf>0&&A.ct>.08)startGuard();break;}
+   case'iai':{P.t+=dt;P.iaiT=P.t;f.vx*=Math.exp(-dt*14);if(dir)f.face=dir;if(hit('dodge')&&P.ki>=10){A.holdPose=null;P.iaiFull=false;P.state='dodge';P.ki-=10;P.dodgeDir=dir||-f.face;P.t=0;P.inv=.27;play(A,CL.dodge,1,.02);Audio2.sfx('dodge');break;}const full=P.t>.55;if(full&&!P.iaiFull){P.iaiFull=true;Audio2.sfx('select');Fx.light(f.x+f.face*4,BASE_Y-30,'#c8e8ff',36,.3);}if(!P.iaiFull&&Math.random()<dt*14)Fx.sparks(f.x+rand(-14,14),BASE_Y-rand(0,16),1,1,{spread:.4,up:-1.57,v0:20,v1:60,g:-40,life:.4,c:'#a8d8ff'});
      if(!Input.down.iai||lock){doIai(P.t);}break;}
    case'iaiDash':{P.t+=dt;const k=P.iaiDist/.1;if(P.t<.1){f.vx=f.face*k;ghost(f);}else f.vx*=Math.exp(-dt*24);iaiHits();if(P.t>.52){P.state='noto';play(A,CL.noto,1.15,.08);P.t=0;P.noto=false;P.iaiFull=false;}break;}
-   case'noto':{f.vx*=Math.exp(-dt*12);P.t+=dt;const pct=A.clip?A.ct:9;if(!P.noto&&pct>.5){P.noto=true;Audio2.tone&&Audio2.tone(2400,.08,.1,'square');Audio2.tone(3200,.05,.07,'square',.03);P.drawn=false;}if(!A.clip){P.state='free';P.drawn=false;}if(dir||hit('jump')){if(pct>.5){P.drawn=false;}P.state='free';stopClip(A,.12);}if(P.buf>0){P.drawn=true;startAttack();}break;}
+   case'noto':{f.vx*=Math.exp(-dt*12);P.t+=dt;const pct=A.clip?A.ct:9;if(!P.noto&&pct>.5){P.noto=true;Audio2.tone&&Audio2.tone(2400,.08,.1,'square');Audio2.tone(3200,.05,.07,'square',.03);P.drawn=false;}if(!A.clip){P.state='free';P.drawn=false;}if(dir||hit('jump')){if(pct>.5){P.drawn=false;}P.state='free';stopClip(A,.12);}if(P.buf>0){P.drawn=true;startAttack();}else if(P.gbuf>0||hit('dodge')||Input.down.iai){P.drawn=true;P.state='free';stopClip(A,.08);}break;}
    case'dodge':{P.t+=dt;const u=P.t/.2;if(u<1)f.vx=P.dodgeDir*lerp(330,120,u);else f.vx*=Math.exp(-dt*10);ghost(f);if(!A.clip){P.state='free';}if(P.t>.24&&P.buf>0){startAttack();}break;}
    case'hurt':{f.vx*=Math.exp(-dt*8);if(!A.clip)P.state='free';break;}
    case'dead':{f.vx*=Math.exp(-dt*6);break;}
@@ -678,25 +691,29 @@ function playerUpdate(dt){const f=P.f,A=f.av,lock=G.lock>0;let dir=0;const inp=l
   f.x=clamp(f.x,G.camMin+18,G.camMax-18);
   if(P.state==='free'&&!P.ground&&!A.clip){A.holdPose=f.vy<0?pose({hy:32,lean:.12,hp:-.1,frx:7,fry:16,flx:-7,fly:21,rx:P.drawn?10:3,ry:P.drawn?38:36,rz:5,lx:P.drawn?5:0,ly:33,sw:P.drawn?.9:-1.3,grip:P.drawn?1:0,shea:P.drawn?0:1}):pose({hy:32,lean:.02,hp:.05,frx:6,fry:9,flx:-8,fly:13,rx:P.drawn?10:0,ry:P.drawn?40:40,rz:6,lx:P.drawn?5:-3,ly:39,sw:P.drawn?1.1:-1.3,grip:P.drawn?1:0,shea:P.drawn?0:1});}
   else if(P.state==='free'&&P.ground&&A.holdPose){A.holdPose=null;A.from=A.pose.slice();A.blendT=A.blend=.07;}
-  if(P.state==='free'&&Math.abs(f.vx)>30&&P.ground){f.stepT=(f.stepT||0)+Math.abs(f.vx)*dt;if(f.stepT>42){f.stepT=0;Audio2.sfx('step');if(Math.abs(f.vx)>120)Fx.dust(f.x-f.face*6,BASE_Y,1,f.face);}}
+  if(P.state==='free'&&Math.abs(f.vx)>30&&P.ground){f.stepT=(f.stepT||0)+Math.abs(f.vx)*dt;if(f.stepT>(Math.abs(f.vx)>120?54:42)){f.stepT=0;Audio2.sfx('step');if(Math.abs(f.vx)>120)Fx.dust(f.x-f.face*8,BASE_Y,3,f.face);}}
   if(P.state==='free'&&P.buf>0&&!P.ground&&!G.noCombat){startAttack();}
   animate(A,dt,Math.abs(f.vx),P.drawn);stepChains(A,dt,f.vx*f.face*dt*.8,1);trailStep(f,dt,false);
 }
 function ghost(f){P.ghostT=(P.ghostT||0)-1;if(P.ghostT>0)return;P.ghostT=3;const c=mkCanvas(BW,BH),g=c.getContext('2d'),A=f.av;const ch=A.chains,tr=A.trail;A.chains=null;A.trail=[];drawRig(g,A,BW/2,BH-22,{scale:ACTOR_S,yaw:.45,mirror:f.face<0});A.chains=ch;A.trail=tr;g.globalCompositeOperation='source-atop';g.fillStyle='#7ab8ff';g.fillRect(0,0,BW,BH);Fx.ghosts.push({c,x:f.x,y:f.y+f.depth,age:0});if(Fx.ghosts.length>6)Fx.ghosts.shift();}
-function swordHits(c){const f=P.f,reach=c.reach*ACTOR_S;for(const e of G.enemies){if(e.state==='dead'||P.hitset.has(e))continue;const dx=(e.x-f.x)*f.face;if(dx<-10||dx>reach)continue;const ey=e.y,py=f.y;if(Math.abs(ey-py)>58)continue;P.hitset.add(e);const dmg=(c.dmg+G.atkBonus)*(P.counter>0?2.2:1);damageEnemy(e,dmg,c.heavy||P.counter>0,f.face);P.counter=0;}}
-function doIai(ch){const f=P.f,A=f.av,full=ch>.55;A.holdPose=null;if(ch<.12){P.state='free';P.iaiFull=false;A.from=A.pose.slice();A.blendT=A.blend=.08;return;}
-  const lv=full?(G.skills.issen?2:1):0;P.iaiLv=lv;P.iaiDist=lv===2?230:lv===1?140:62;P.state='iaiDash';P.t=0;P.inv=.26;P.ki=Math.max(0,P.ki-(lv?26:8));P.drawn=true;P.hitset=new Set();
+function swordHits(c){const f=P.f,reach=c.reach*ACTOR_S;for(const e of G.enemies){if(e.state==='dead'||P.hitset.has(e))continue;const dx=(e.x-f.x)*f.face;if(dx<-10||dx>reach)continue;const ey=e.y,py=f.y;if(Math.abs(ey-py)>58)continue;P.hitset.add(e);const dmg=(c.dmg+G.atkBonus)*(P.counter>0?(P.counterK||2.2):1)*(P.sae?1.3:1);if(P.sae){e.posture-=dmg*.6;Fx.float(e.x,BASE_Y-74,'冴','#bfe8ff',15);}damageEnemy(e,dmg,c.heavy||P.counter>0,f.face);P.counter=0;}}
+function doIai(ch){const f=P.f,A=f.av,full=ch>.55;A.holdPose=null;
+  const lv=full?(G.skills.issen?2:1):0;P.iaiLv=lv;P.iaiJust=full&&ch<.8;P.iaiDist=lv===2?230:lv===1?140:62;P.state='iaiDash';P.t=0;P.inv=.26;P.ki=P.iaiJust?Math.min(100,P.ki+6):Math.max(0,P.ki-(lv?26:8));if(P.iaiJust)Fx.float(f.x,BASE_Y-82,'極','#ffe7a0',18);P.drawn=true;P.hitset=new Set();
   const cl=clip(.5,[K(0,{hx:-3,hy:22,lean:.46,tw:.52,hp:-.22,rx:5,ry:30,rz:-1,lx:1,ly:31,lz:-6,frx:11,flx:-13,sw:-.1,grip:0,shea:1}),K(.03,{hx:6,hy:18,lean:.62,tw:-.3,rx:22,ry:32,rz:5,sw:-.05,grip:0,lx:-4,ly:31,lz:-7,frx:22,flx:-16,shea:0},ease.out5),K(.1,{hx:8,hy:19,lean:.42,tw:-1,rx:24,ry:41,rz:6,sw:.72,grip:0,lx:-7,ly:31,lz:-7,frx:27,flx:-18,shea:0},ease.out3),K(.32,{hx:8,hy:19,lean:.42,tw:-1,rx:24,ry:42,rz:6,sw:.78,grip:0,lx:-7,ly:31,lz:-7,frx:27,flx:-18,shea:0}),K(.5,{hx:6,hy:23,lean:.2,tw:-.3,rx:17,ry:37,rz:4,sw:.5,grip:.5,frx:18,flx:-14,shea:0},ease.io)]);
   play(A,cl,1,.01);trailStep(f,0,true);Audio2.sfx('iai');Fx.dust(f.x,BASE_Y,10,f.face);if(lv){flash(.26,'#dff0ff');shake(3,[f.face,0]);Fx.light(f.x+f.face*50,BASE_Y-30,'#a8d8ff',96,.22);}P.iaiFull=false;
   G.iaiLine={x0:f.x,x1:f.x+f.face*P.iaiDist,y:BASE_Y-32,age:0,lv};}
-function iaiHits(){const f=P.f;trailStep(f,0,P.t<.14);if(P.t>.2)return;for(const e of G.enemies){if(e.state==='dead'||P.hitset.has(e))continue;const dx=(e.x-f.x)*f.face;if(dx<-90||dx>44)continue;P.hitset.add(e);const d=(P.iaiLv===2?64:P.iaiLv===1?46:22)+G.atkBonus;damageEnemy(e,d,P.iaiLv>0,f.face,P.iaiLv===2);}}
-function damageEnemy(e,dmg,heavy,dir,breakPos){const d=e.def;const parried=d.parrier&&e.state!=='atk'&&e.state!=='stagger'&&Math.random()<.34;
+function iaiHits(){const f=P.f;trailStep(f,0,P.t<.14);if(P.t>.2)return;for(const e of G.enemies){if(e.state==='dead'||P.hitset.has(e))continue;const dx=(e.x-f.x)*f.face;if(dx<-90||dx>44)continue;P.hitset.add(e);const d=((P.iaiLv===2?64:P.iaiLv===1?46:22)+G.atkBonus)*(P.iaiJust?1.4:1);damageEnemy(e,d,P.iaiLv>0,f.face,P.iaiLv===2||P.iaiJust);}}
+function damageEnemy(e,dmg,heavy,dir,breakPos){const d=e.def;e.barT=2.4;
+  if(e.guardT>0&&!heavy&&!breakPos){e.posture-=dmg*.5;Audio2.sfx('clang');Fx.sparks(e.x-dir*12,BASE_Y-40,8,-dir);Fx.float(e.x,BASE_Y-74,'受','#bfe0ff');hitstop(.05);P.f.vx=-dir*90;P.state='clash';play(P.f.av,CL.clash,1,.02);if(e.posture>0)return;e.guardT=0;e.f.av.holdPose=null;heavy=true;}
+  const parried=d.parrier&&e.state!=='atk'&&e.state!=='stagger'&&Math.random()<.34;
   if(parried&&!heavy){Audio2.sfx('clang');Fx.sparks(e.x-dir*12,BASE_Y-36,10,-dir);Fx.float(e.x,BASE_Y-74,'弾','#bfe0ff');hitstop(.06);e.face=-dir;play(e.f.av,CL.clash,1,.02);e.state='spar';e.timer=.1;return;}
   e.hp-=dmg;e.posture-=dmg*(heavy?1.5:1);e.f.av.flash=1;e.f.vx=dir*(heavy?120:70)*(d.armor?.3:1);
   const hy=BASE_Y-rand(28,48);Fx.ink(e.x,hy,heavy?26:12,dir);Fx.sparks(e.x-dir*2,hy,heavy?10:5,dir,{c:'#ffdca0'});Fx.light(e.x,hy,'#ffd8b0',heavy?56:34,.12);Audio2.sfx(heavy?'heavy':'hit');hitstop(heavy?.095:.055);shake(heavy?4.5:2,[dir,.2]);G.zoom=Math.max(G.zoom,heavy?.03:.012);P.ki=Math.min(100,P.ki+(heavy?5:3));
   if(heavy)Fx.sheet('crit-hit',e.x,BASE_Y-32,dir<0,1.2);
   if(e.hp<=0){killEnemy(e,dir);return;}
   if(breakPos||e.posture<=0){if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.state='stagger';e.timer=d.boss?1.5:1.1;e.posture=d.pos;e.f.av.flash=1;play(e.f.av,CL.stagger,d.boss?.62:.82,.02);Fx.float(e.x,BASE_Y-78,'崩','#ffcf7a');Audio2.sfx('block');return;}
+  e.streak=(e.streakT>0?e.streak||0:0)+1;e.streakT=1.3;if(e.streak>=(d.boss||d.armor?5:3)&&!e.guardT){e.streak=0;e.guardT=1;Fx.float(e.x,BASE_Y-78,'構','#bfe0ff',13);}
+  if(e.state==='atk'&&e.atk.red&&!heavy)return;
   if(!d.armor&&!d.boss){if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.state='hurt';e.timer=.26;play(e.f.av,CL.hurt,1.1,.02);}
   else if(!d.armor&&e.state!=='atk'&&Math.random()<.4){e.state='hurt';e.timer=.22;play(e.f.av,CL.hurt,1.3,.02);}}
 function killEnemy(e,dir){if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.state='dead';e.timer=0;G.kills++;const d=e.def;play(e.f.av,CL.die,1,.02);e.f.av.clip=Object.assign({},CL.die,{hold:true});e.f.vx=dir*90;Fx.ink(e.x,BASE_Y-36,36,dir);for(let i=0;i<(d.coin||0);i++)Fx.coin(e.x,BASE_Y);G.coin+=d.coin||0;
@@ -706,12 +723,12 @@ function killEnemy(e,dir){if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.s
 }
 // 敵に打たれる
 function hitPlayer(e,c,opts={}){const f=P.f,dir=Math.sign(f.x-e.x)||1;if(P.state==='dead'||P.state==='cut')return false;
-  if(P.inv>0){if(P.state==='dodge'&&!P.mikiri){P.mikiri=true;slowmo(.26,.3);Fx.float(f.x,BASE_Y-82,'見切','#bfe8ff');P.ki=Math.min(100,P.ki+12);setTimeout(()=>P.mikiri=false,300);}return false;}
+  if(P.inv>0){if(P.state==='dodge'&&!P.mikiri){P.mikiri=true;slowmo(.26,.3);Fx.float(f.x,BASE_Y-82,'見切','#bfe8ff');P.ki=Math.min(100,P.ki+12);P.counter=.7;P.counterK=1.7;setTimeout(()=>P.mikiri=false,300);}return false;}
   const facing=(f.face===-dir);
-  if(P.state==='guard'&&facing){const win=G.skills.ryusui?.26:.18;
-    if(P.guardT<win){ // 弾き
-      Audio2.sfx('clang');const hx=f.x+f.face*26,hy=BASE_Y-48;Fx.sheet('parry',hx,hy+30,f.face<0,1.2);Fx.light(hx,hy,'#fff0c0',90,.2);flash(.2,'#fff6e0');hitstop(.1);slowmo(.34,.26);shake(3,[f.face,0]);Fx.float(hx,hy-26,'弾','#ffe7a0',18);play(f.av,CL.clash,1,.02);P.state='clash';P.ki=Math.min(100,P.ki+18);if(G.skills.ryusui)P.counter=.9;
-      if(e){e.posture-=e.def.boss?34:999;if(e.posture<=0){e.posture=e.def.pos;if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.state='stagger';e.timer=e.def.boss?1.3:1.1;play(e.f.av,CL.stagger,e.def.boss?.7:.85,.02);Fx.float(e.x,BASE_Y-78,'崩','#ffcf7a');e.f.vx=-dir*-1*70;}else{e.f.vx=-dir*-1*50;}}
+  if(P.state==='guard'&&facing){const rs=G.skills.ryusui,win=rs?.32:.24,just=P.guardT<(rs?.14:.1);
+    if(P.guardT<win){ // 弾き。ぎりぎりほど良く、押すのが早いと並の弾きになる
+      Audio2.sfx('clang');const hx=f.x+f.face*26,hy=BASE_Y-48;Fx.sheet('parry',hx,hy+30,f.face<0,just?1.2:1.5);Fx.light(hx,hy,'#fff0c0',just?90:54,.2);if(just){flash(.2,'#fff6e0');slowmo(.34,.26);}hitstop(just?.1:.06);shake(just?3:2,[f.face,0]);Fx.float(hx,hy-26,just?'極':'弾','#ffe7a0',just?20:15);play(f.av,CL.clash,1,.02);P.state='clash';P.parryCd=0;P.ki=Math.min(100,P.ki+(just?18:8));if(just||rs){P.counter=.9;P.counterK=2.2;}
+      if(e){e.posture-=just?(e.def.boss?50:999):e.def.pos*(e.def.boss?.18:.6);e.barT=2.4;if(e.posture<=0){e.posture=e.def.pos;if(e.state==='atk')G.tokens=Math.max(0,G.tokens-1);e.state='stagger';e.timer=e.def.boss?1.3:1.1;play(e.f.av,CL.stagger,e.def.boss?.7:.85,.02);Fx.float(e.x,BASE_Y-78,'崩','#ffcf7a');e.f.vx=-dir*70;}else{e.f.vx=-dir*50;}}
       return false;}
     if(!c.red&&P.ki>0){Audio2.sfx('block');P.ki-=20;Fx.sparks(f.x+f.face*16,BASE_Y-44,6,f.face);f.vx=dir*90;P.guardT=.3;hitstop(.04);shake(1.5);if(P.ki<=0){P.ki=0;P.state='hurt';play(f.av,CL.stagger,1.1,.02);Fx.float(f.x,BASE_Y-82,'崩','#ff9c7a');}return false;}}
   const dmg=c.dmg*(G.hardMul||1);P.hp-=dmg;P.inv=.7;f.av.flash=1;f.vx=dir*170;f.vy=f.y<0?f.vy:0;Fx.ink(f.x,BASE_Y-38,16,dir,'#6e1216');Audio2.sfx('hurt');hitstop(.08);shake(5,[dir,.3]);flash(.22,'#ff4030');G.zoom=Math.max(G.zoom,.02);P.combo=0;
@@ -720,11 +737,13 @@ function hitPlayer(e,c,opts={}){const f=P.f,dir=Math.sign(f.x-e.x)||1;if(P.state
 function spawnEnemy(type,x,side){const d=ENEMY[type],e={def:d,type,f:new Fighter(d.style,x),state:'approach',hp:d.hp*(G.hardHp||1),hpMax:d.hp*(G.hardHp||1),posture:d.pos,timer:rand(.2,.8),seed:rand(10)};e.f.def=d;e.f.depth=Math.round(rand(-5,6));e.x=x;e.y=0;e.f.face=side;if(d.drawn!==false)e.drawn=true;G.enemies.push(e);return e;}
 function enemyUpdate(e,dt){const d=e.def,f=e.f,A=f.av,pf=P.f;e.x=f.x;e.y=f.y;const dist=pf.x-f.x,ad=Math.abs(dist),sd=Math.sign(dist)||1;const lock=G.lock>0;let want=0;
   const aspd=(d.aspd||1)*(d.boss&&e.hp<e.hpMax*.5?1.14:1);
+  e.barT=Math.max(0,(e.barT||0)-dt);e.streakT=Math.max(0,(e.streakT||0)-dt);
+  if(e.guardT>0){e.guardT-=dt;if(e.state==='spar'&&!A.clip)A.holdPose=CL.parry.k[2][1];if(e.guardT<=0||e.state==='dead'){e.guardT=0;if(A.holdPose){A.holdPose=null;A.from=A.pose.slice();A.blendT=A.blend=.1;}}}
   switch(e.state){
    case'approach':f.face=sd;if(!lock){if(ad>d.space+8)want=sd*d.spd*(ad>190?1.4:1);else{e.state='spar';e.timer=rand(.15,.8);}}break;
-   case'spar':f.face=sd;e.timer-=dt;if(!lock){e.dance=(e.dance||rand(1)<.5?1:-1);if(ad>d.space+26)want=sd*d.spd;else if(ad<d.space-18)want=-sd*d.spd*.8;else want=Math.sin(G.time*1.6+e.seed*5)*d.spd*.33;
+   case'spar':f.face=sd;e.timer-=dt;if(e.guardT>0){e.timer=Math.max(e.timer,.15);if(!lock&&ad<d.space+30)want=-sd*d.spd*.7;break;}if(!lock){e.dance=(e.dance||rand(1)<.5?1:-1);if(ad>d.space+26)want=sd*d.spd;else if(ad<d.space-18)want=-sd*d.spd*.8;else want=Math.sin(G.time*1.6+e.seed*5)*d.spd*.33;
       const cap=d.boss?2:(G.enemies.length>3?2:1);if(e.timer<=0&&(G.tokens||0)<cap&&P.state!=='dead'&&P.state!=='cut'){const name=d.atk[Math.floor(Math.random()*d.atk.length)],c=CL[name];const need=c.reach?(c.lunge||0)*.8+c.reach*.8:400;if(ad<need+6||c.throwAt){e.state='atk';e.atk=c;G.tokens=(G.tokens||0)+1;play(A,c,aspd,.05);e.hasHit=false;e.teled=false;e.fired=false;e.thrown=false;}else{want=sd*d.spd;e.timer=.1;}}}break;
-   case'atk':{const c=e.atk,t=A.ct;if(c.tele&&!e.teled&&t>=c.tele[1]-.12/aspd){e.teled=true;const[tx,ty]=bladeTip(f);Fx.parts.push({t:'spark',x:tx,y:ty,vx:0,vy:0,g:0,life:.14,age:0,c:'#fff'});Fx.light(tx,ty,c.red?'#ff4a30':'#fff6d0',c.red?46:26,.2);if(c.red){Fx.float(f.x,BASE_Y-(d.scale?96:82)*(A.style.scale||1),'危','#ff5038',17);Audio2.tone(880,.12,.09,'square',0,.7);}else Audio2.tone(1560,.06,.05,'square');}
+   case'atk':{const c=e.atk,t=A.ct;if(c.tele&&!e.teled&&t>=c.tele[1]-.3*aspd){e.teled=true;const[tx,ty]=bladeTip(f);Fx.parts.push({t:'spark',x:tx,y:ty,vx:0,vy:0,g:0,life:.14,age:0,c:'#fff'});Fx.light(tx,ty,c.red?'#ff4a30':'#fff6d0',c.red?46:26,.2);if(c.red){Fx.float(f.x,BASE_Y-(d.scale?96:82)*(A.style.scale||1),'危','#ff5038',17);Audio2.tone(880,.12,.09,'square',0,.7);}else Audio2.tone(1560,.06,.05,'square');}
       if(c.lungeAt&&t>=c.lungeAt[0]&&t<=c.lungeAt[1]){want=f.face*c.lunge/(c.lungeAt[1]-c.lungeAt[0]);e.rawV=want;}
       if(c.active&&t>=c.active[0]-.02&&t<=c.active[1]+.05)trailStep(f,0,true);
       if(!e.fired&&c.active&&t>=c.active[0]){e.fired=true;Audio2.sfx(c.sfx);if(c.slam){}}
@@ -813,7 +832,7 @@ class Town{constructor(id){const d=TOWN_DEF[id];this.id=id;this.d=d;this.time=0;
     this.solidW=[[W2.x0,0,W2.x1,W2.bridge[0]],[W2.x0,W2.bridge[1],W2.x1,TH]];}
   return p.flush();}
  blocked(x,y){if(x<14||x>TW-14||y<34||y>TH-6)return true;for(const s of this.solid)if(x>s[0]&&x<s[2]&&y>s[1]&&y<s[3])return true;if(this.solidW)for(const s of this.solidW)if(x>s[0]&&x<s[2]&&y>s[1]&&y<s[3])return true;return false;}
- update(dt){this.time+=dt;const f=this.pl,lock=G.lock>0;let dx=0,dy=0;if(!lock){if(Input.down.right)dx++;if(Input.down.left)dx--;if(Input.down.down)dy++;if(Input.down.up)dy--;}const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;const run=Input.down.run||G.autorun||Input.touchRun,spd=(dx||dy)?(run?138:72):0;f.vx=lerp(f.vx,dx*spd,1-Math.exp(-dt*12));f.vy=lerp(f.vy,dy*spd*.82,1-Math.exp(-dt*12));
+ update(dt){this.time+=dt;const f=this.pl,lock=G.lock>0;let dx=0,dy=0;if(!lock){if(Input.down.right)dx++;if(Input.down.left)dx--;if(Input.down.down)dy++;if(Input.down.up)dy--;}const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;const run=Input.down.run||G.autorun||Input.touchRun,spd=(dx||dy)?(run?180:72):0;f.vx=lerp(f.vx,dx*spd,1-Math.exp(-dt*12));f.vy=lerp(f.vy,dy*spd*.82,1-Math.exp(-dt*12));
   const nx=f.x+f.vx*dt,ny=f.y+f.vy*dt;if(!this.blocked(nx,f.y))f.x=nx;else f.vx=0;if(!this.blocked(f.x,ny))f.y=ny;else f.vy=0;
   if(!lock&&Input.hit('autorun')){G.autorun=!G.autorun;UI.toast(G.autorun?'常に走る':'歩きを基本にする');}if(!lock&&Input.hit('item'))useDango();
   const v=Math.hypot(f.vx,f.vy);if(v>6){const want=Math.atan2(f.vy,f.vx);let d=want-f.yaw;d=((d+Math.PI)%TAU+TAU)%TAU-Math.PI;f.yaw+=d*(1-Math.exp(-dt*12));}
@@ -882,8 +901,8 @@ const Story={
   await T('男',['……ここは。','……俺は――']);
   await N(['その先の言葉が、出てこなかった。','自分の名が、ない。','親の顔も、昨日の飯も、生まれた国も、ない。ぽっかりと、白い。','あるのは腰の刀の重みだけ。そしてその重みだけが、妙に、馴染んでいる。']);
   G.lock--;Q('main1');UI.hint('← → で歩く / Shift で走る');Audio2.mood='calm';},
- async firstFight(){G.lock++;await T('鴉面',['見つけたぞ。','水に沈めても死なぬとは。さすがと言うべきか。']);await T('男',['待て。俺を知っているのか。俺は――何者だ。']);await T('鴉面',['……なるほど。噂は本当か。','知っているとも。だからこそ、斬る。']);await N('男が抜いた。――その時。');await N(['考えるより先に、右手が柄に触れていた。','頭は何ひとつ覚えていないのに、この手だけが、次の一手を知っている。']);G.lock--;UI.hint('J で斬る / L で弾く(受ける瞬間に押すと崩せる)/ I で身をかわす / K 長押しで居合',7);},
- async afterFirst(){G.lock++;await UI.wait(.5);await T('男',['……俺が、やったのか。']);await N(['血を振った手つきも、鞘に納める音も、体が勝手にしていた。','恐ろしいのは、人を斬ったことではなかった。','恐ろしくないことが、恐ろしかった。']);G.lock--;},
+ async firstFight(){G.lock++;await T('鴉面',['見つけたぞ。','水に沈めても死なぬとは。さすがと言うべきか。']);await T('男',['待て。俺を知っているのか。俺は――何者だ。']);await T('鴉面',['……なるほど。噂は本当か。','知っているとも。だからこそ、斬る。']);await N('男が抜いた。――その時。');await N(['考えるより先に、右手が柄に触れていた。','頭は何ひとつ覚えていないのに、この手だけが、次の一手を知っている。']);G.lock--;UI.hint('J で斬る / 刃が届く直前に L で弾く / I で躱す / K で居合(長押しで溜め)',8);},
+ async afterFirst(){G.lock++;await UI.wait(.5);await T('男',['……俺が、やったのか。']);await N(['血を振った手つきも、鞘に納める音も、体が勝手にしていた。','恐ろしいのは、人を斬ったことではなかった。','恐ろしくないことが、恐ろしかった。']);G.lock--;UI.hint('太刀を振り抜いた瞬間に J を押すと「冴」。連打より深く入る',7);},
  async yohei(){if(has('yohei')){await T('与平',['霧野宿はこの先だ。あそこの茶屋の団子は、死人でも起き上がるぞ。']);return;}set('yohei');
   await T('与平',['おや、まあ。生きとったのか、お前さん。']);
   await T('男',['……俺を知っているのか。']);
@@ -1052,7 +1071,7 @@ const STAGES=[
 const $=id=>document.getElementById(id);
 const UI={speaker:null,pAv:{},advance:false,
  fit(){const vw=innerWidth,vh=innerHeight,portrait=vh>vw*1.1,touchy=matchMedia('(pointer:coarse)').matches;document.body.classList.toggle('touchy',touchy);const reserve=touchy&&portrait?230:0;let u=Math.min(vw/640,(vh-reserve)/360);document.documentElement.style.setProperty('--u',u+'px');$('wrap').style.justifyContent=reserve?'flex-start':'center';UI.layoutTouch(portrait);},
- hud(show,town){$('hud').style.opacity=show?1:0;$('hud').classList.toggle('town',!!town);},
+ hud(show,town){$('hud').style.opacity=show?1:0;$('hud').classList.toggle('town',!!town);$('helpline').textContent=matchMedia('(pointer:coarse)').matches?'':town?'矢印 歩く  Shift 走る  E 話す  M 巻物':'J 斬る  L 弾く  K 居合(長押しで溜め)  I 躱す  Shift 走る  Space 跳ぶ  Q 団子  M 巻物';},
  place(t){$('hplace').textContent=t;},
  updateHud(){const hp=clamp(P.hp/G.hpMax)*100;$('ghpi').style.width=hp+'%';$('ghpb').style.width=hp+'%';$('gkii').style.width=clamp(P.ki/100)*100+'%';$('hmoney').textContent=`銭 ${G.coin}文 / 団子 ${G.dango}`;},
  boss(e){const b=$('bossb');if(!e){b.style.display='none';return;}b.style.display='block';$('bname').textContent=e.def.name;const p=clamp(e.hp/e.hpMax)*100;$('bhi').style.width=p+'%';$('bhb').style.width=p+'%';},
@@ -1076,17 +1095,17 @@ const UI={speaker:null,pAv:{},advance:false,
    for(const l of lines){if(!l){const sp=document.createElement('p');sp.textContent=' ';f.insertBefore(sp,more);continue;}const p=document.createElement('p');p.textContent=l;f.insertBefore(p,more);await UI.wait(.02);p.classList.add('in');await new Promise(r=>{let done=false;const go=()=>{if(!done){done=true;r();}};waitAdv=go;setTimeout(go,(o.auto?o.auto*1000:(o.slow?1100:750)+l.length*22));});}
    if(!o.auto){more.style.opacity=1;await new Promise(r=>{waitAdv=r;});more.style.opacity=0;}else await UI.wait(o.auto);UI._flashAdv=null;f.classList.remove('show');await UI.wait(.7);f.style.display='none';G.lock--;res();});},
  tick(dt){if(UI._type)UI._type(dt);if(UI._choose)UI._choose();const adv=Input.hit('act')||Input.hit('slash')||Input.hit('jump');if(UI._adv&&adv&&!UI._choose)UI._adv();else if(UI._flashAdv&&adv)UI._flashAdv();
-  if(UI.speaker){const A=UI.speaker,c=$('pc'),g=c.getContext('2d');g.clearRect(0,0,96,96);g.imageSmoothingEnabled=false;A.time+=dt;A.blink=(A.time%3.6)>3.46;const typing=UI._type&&$('dmore').hidden;A.mouth=typing&&(A.time*9%2)<1;A.pose.set(STAND);A.pose[PI.hy]+=Math.sin(A.time*2)*.3;drawRig(g,A,48,244,{scale:3.5/(A.style.scale||1),yaw:1.0,bust:true,ox:110,oy:232});}},
+  if(UI.speaker){const A=UI.speaker,c=$('pc'),g=c.getContext('2d');g.clearRect(0,0,96,96);g.imageSmoothingEnabled=false;A.time+=dt;A.blink=(A.time%3.6)>3.46;const typing=UI._type&&$('dmore').hidden;A.mouth=typing&&(A.time*9%2)<1;A.pose.set(STAND);A.pose[PI.hy]+=Math.sin(A.time*2)*.3;drawRig(g,A,48,256,{scale:3.5/(A.style.scale||1),yaw:1.0,bust:true,ox:110,oy:232});}},
  // 巻物
  menuTab:'journal',openMenu(){if(G.mode==='title')return;$('menu').style.display='flex';G.lock++;G.menu=true;UI.drawMenu();},
  closeMenu(){if(!G.menu)return;$('menu').style.display='none';G.lock--;G.menu=false;},
  drawMenu(){const T=[['journal','旅の記'],['mem','記憶'],['skill','技'],['help','操作']];const t=$('tabs');t.innerHTML='';T.forEach(([k,n])=>{const b=document.createElement('button');b.textContent=n;if(UI.menuTab===k)b.className='on';b.onclick=()=>{UI.menuTab=k;UI.drawMenu();};t.append(b);});const m=$('mbody');const dots=n=>'●'.repeat(Math.min(n,8))+'○'.repeat(Math.max(0,5-n));let h='';
    if(UI.menuTab==='journal'){h+=`<div class="route"><span>縁(記憶の道)</span><span class="dots">${dots(G.en)}</span><span>練(剣の道)</span><span class="dots">${dots(G.ren)}</span></div>`;const ids=Object.keys(G.quests).reverse();ids.forEach(id=>{const q=QUESTS[id],done=G.quests[id]==='done';h+=`<div class="ent ${done?'done':''}"><b>${q.t}${done?'(済)':''}</b>${q.d}</div>`;});if(!ids.length)h+='<p>まだ何も書かれていない。</p>';}
    else if(UI.menuTab==='mem'){G.mems.forEach(id=>{h+=`<div class="ent"><b>${MEMS[id].t}</b>${MEMS[id].d}</div>`;});if(!G.mems.length)h+='<p>何も、思い出せない。</p>';}
-   else if(UI.menuTab==='skill'){h+=`<div class="ent"><b>霜切り(体が覚えている)</b>三連の太刀、弾き、居合。</div>`;Object.keys(G.skills).forEach(k=>{h+=`<div class="ent"><b>${SKILLS[k].n}</b>${SKILLS[k].d}</div>`;});for(const k in SKILLS)if(!G.skills[k])h+=`<div class="ent" style="opacity:.5"><b>???</b>まだ知らない技。旅の師が持っているかもしれない。</div>`;}
+   else if(UI.menuTab==='skill'){h+=`<div class="ent"><b>三連の太刀(J / Z)</b>押すたびに次の太刀へ続く。連打で出せる。前の太刀を振り抜いた瞬間に押すと「冴」になり、深く入る。</div><div class="ent"><b>弾き(L / C)</b>軽く押すだけでいい。刃が届く直前に押すと「極」で相手が崩れ、次の一太刀が重くなる。押すのが早いと並の弾き。外すと少しの間、弾けない。</div><div class="ent"><b>居合(K / X)</b>短く押すと抜き打ち。長押しで溜め、光ってすぐに離すと「極」。気を使わず、構えも割る。溜めている間は無防備で、I で取り消せる。</div>`;Object.keys(G.skills).forEach(k=>{h+=`<div class="ent"><b>${SKILLS[k].n}</b>${SKILLS[k].d}</div>`;});for(const k in SKILLS)if(!G.skills[k])h+=`<div class="ent" style="opacity:.5"><b>???</b>まだ知らない技。旅の師が持っているかもしれない。</div>`;}
    else h+=UI.helpHtml();
    m.innerHTML=h;},
- helpHtml(){return `<div class="ent"><b>動く</b>← → / A D で歩く。Shift を押しながらで走る。R で「常に走る」を切り替え。↑ / Space で跳ぶ。町では ↑↓←→ で全方向に歩ける。</div><div class="ent"><b>斬る</b>J / Z 連打で三連(燕返しを習うと四連)。空中でも斬れる。</div><div class="ent"><b>弾く</b>L / C。受ける瞬間に押すと相手を崩す。押しっぱなしは防御で、気を削られる。「危」の文字が出る赤い攻撃は、防御できない。弾くか、かわすか。</div><div class="ent"><b>かわす</b>I / V。一瞬、刃が当たらなくなる。</div><div class="ent"><b>居合</b>K / X を長押しで溜め、離すと踏み込んで一閃。</div><div class="ent"><b>その他</b>E / Enter で話す・入る。Q で団子を食べる。M / Tab で巻物を開く。</div>`;},
+ helpHtml(){return `<div class="ent"><b>動く</b>← → / A D で歩く。Shift を押しながらで走る。R で「常に走る」を切り替え。↑ / Space で跳ぶ。町では ↑↓←→ で全方向に歩ける。</div><div class="ent"><b>斬る</b>J / Z で三連(燕返しを習うと四連)。連打でも続くが、振り抜いた瞬間に押すと「冴」で深く入る。三度続けて受けた相手は「構」えて軽い太刀を防ぐ。三の太刀、弾きの直後、溜めた居合なら割れる。空中でも斬れる。</div><div class="ent"><b>弾く</b>L / C を軽く押す。刃が届く直前なら「極」で相手が崩れ、次の一太刀が重くなる。少し早いと並の弾き。外すと少しの間、弾けない。押しっぱなしは防御で、気を削られる。「危」の文字が出る赤い攻撃は防御できず、並の太刀では止まらない。弾くか、かわすか。</div><div class="ent"><b>かわす</b>I / V。一瞬、刃が当たらなくなる。刃をかわすと「見切」で、次の一太刀が重くなる。</div><div class="ent"><b>居合</b>K / X を短く押すと抜き打ち。長押しで溜めると遠くまで踏み込む。光ってすぐに離すと「極」。</div><div class="ent"><b>その他</b>E / Enter で話す・入る。Q で団子を食べる。M / Tab で巻物を開く。</div>`;},
  // タッチ
  layoutTouch(portrait){const t=$('touch');if(!document.body.classList.contains('touchy')||t.dataset.p===String(portrait))return;t.dataset.p=portrait;t.innerHTML='';const B=(label,act,x,y,cl='',side='l')=>{const b=document.createElement('div');b.className='tb '+cl;b.textContent=label;b.style[side==='l'?'left':'right']=x+'px';b.style.bottom=y+'px';const on=e=>{e.preventDefault();b.classList.add('on');Audio2.unlock();if(act==='run')Input.touchRun=!Input.touchRun;else Input.press(act);};const off=e=>{e.preventDefault();b.classList.remove('on');if(act!=='run')Input.release(act);if(act==='run')b.classList.toggle('on',Input.touchRun);};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('pointerleave',off);t.append(b);};
    const y=portrait?24:10;B('←','left',8,y+50);B('→','right',104,y+50);B('↑','up',56,y+100,'s');B('↓','down',56,y+6,'s');B('走','run',8,y+118,'s');B('斬','slash',8,y+38,'','r');B('弾','guard',72,y+84,'','r');B('躱','dodge',72,y+18,'s','r');B('居','iai',136,y+56,'s','r');B('跳','jump',8,y+104,'s','r');B('話','act',136,y+6,'s','r');B('巻','menu',136,y+110,'s','r');},
@@ -1148,15 +1167,19 @@ function drawField(g,time){const w=G.world,left=G.cam-W/2;drawWorldBack(g,w,G.ca
  for(const gh of Fx.ghosts){g.globalAlpha=(1-gh.age/.26)*.55;g.drawImage(gh.c,Math.round(gh.x-left-BW/2),Math.round(BASE_Y+gh.y-(BH-22)));}g.globalAlpha=1;
  const list=[...G.enemies].sort((a,b)=>a.f.depth-b.f.depth);for(const e of list)if(e.f.depth<0)e.f.draw(g);
  if(G.enterWalk){const u=G.enterWalk.t/G.enterWalk.d;drawRig(g,P.f.av,P.f.sx,BASE_Y-u*20,{scale:ACTOR_S*(1-u*.2),yaw:lerp(.45,-1.57,clamp(u*2.4)),mirror:false});}else P.f.draw(g);
- for(const e of list)if(e.f.depth>=0)e.f.draw(g);shotsDraw(g);Fx.draw(g,left);G.weather.draw(g,time);drawRays(g,w,time);
+ for(const e of list)if(e.f.depth>=0)e.f.draw(g);shotsDraw(g);Fx.draw(g,left);drawCombatMarks(g,left);G.weather.draw(g,time);drawRays(g,w,time);
  if(G.iaiLine){const l=G.iaiLine,u=l.age/.34,x0=l.x0-left,x1=l.x1-left;g.fillStyle='#fff';const th=l.age<.08?3:1;g.fillRect(Math.min(x0,x1),l.y-(th>>1),Math.abs(x1-x0)*(1-u*.4),th);g.fillStyle='#bfe0ff';for(let i=0;i<8;i++){const x=lerp(x0,x1,i/8+Math.random()*.1);g.fillRect(x,l.y+rand(-4,4),rand(3,10),1);}}
  drawWorldFront(g,w,G.cam,G.props);
  if(G.killLine){const k=G.killLine,u=k.age/.3,sx=k.x-left;g.fillStyle=`rgba(255,255,255,${1-u})`;g.beginPath();const th=(1-u)*7;g.moveTo(sx-260*k.dir,BASE_Y-150-th);g.lineTo(sx+260*k.dir,BASE_Y+60-th);g.lineTo(sx+260*k.dir,BASE_Y+60+th);g.lineTo(sx-260*k.dir,BASE_Y-150+th);g.fill();}}
 function vignette(){if(vignette.c)return vignette.c;const c=mkCanvas(W,H),g=c.getContext('2d'),q=g.createRadialGradient(W/2,H/2,H*.4,W/2,H/2,W*.68);q.addColorStop(0,'rgba(0,0,0,0)');q.addColorStop(1,'rgba(6,4,14,.42)');g.fillStyle=q;g.fillRect(0,0,W,H);return vignette.c=c;}
 function compose(frame,y,h,zoom){const sx=(rand(-1,1)*G.shake*.6+G.shakeDir[0]*G.shake*.5)|0,sy=(rand(-1,1)*G.shake*.6+G.shakeDir[1]*G.shake*.5)|0,z=1+zoom,w=W*z,hh=h*z;ctx.drawImage(frame,0,0,W,h,Math.round((W-w)/2+sx),Math.round(y+(h-hh)/2+sy),Math.round(w),Math.round(hh));}
 let last=performance.now(),acc=0;
+// 手応えの止め(ヒットストップ)の間に押された操作を捨てない
+const HOLD_KEYS=['slash','guard','dodge','jump','iai'];
+function drawCombatMarks(g,left){if(P.state==='iai'){const t=P.t,w=26,x=Math.round(P.f.x-left-w/2),y=BASE_Y-82,u=clamp(t/.55),just=t>=.55&&t<.8;g.fillStyle='#0a080c';g.fillRect(x-1,y-1,w+2,4);g.fillStyle=just?((t*30|0)%2?'#ffffff':'#ffe07c'):u>=1?'#a8d8ff':'#6aa9d8';g.fillRect(x,y,Math.round(w*u),2);}
+ for(const e of G.enemies){if(e.def.boss||!(e.barT>0)||e.state==='dead')continue;const w=24,x=Math.round(e.f.x-left-w/2),y=BASE_Y+e.f.depth-78*(e.def.scale||1)*(e.f.av.style.scale||1);g.fillStyle='#0a080c';g.fillRect(x-1,y-1,w+2,5);g.fillStyle='#d03e2e';g.fillRect(x,y,Math.round(w*clamp(e.hp/e.hpMax)),2);g.fillStyle=e.guardT>0?'#bfe0ff':'#cda451';g.fillRect(x,y+2,Math.round(w*clamp(e.posture/e.def.pos)),1);}}
 function frame(now){requestAnimationFrame(frame);let real=Math.min(.05,(now-last)/1000);last=now;if(document.hidden){return;}
- Audio2.tick();
+ rigBeginFrame();Audio2.tick();
  if(Input.hit('menu')&&G.mode!=='title'&&!UI._adv&&!UI._choose&&!UI._flashAdv){if(G.menu)UI.closeMenu();else if(!G.lock)UI.openMenu();}
  if(G.mode==='title')Title.tick();
  UI.tick(real);
@@ -1177,7 +1200,7 @@ function frame(now){requestAnimationFrame(frame);let real=Math.min(.05,(now-last
   else{ // 全画面が帯へ閉じる
    const s=1+e*.3;ctx.globalAlpha=1-ease.out(clamp(u*1.25));ctx.drawImage(T.snap,W/2-W/2*s,H/2-H/2*s,W*s,H*s);ctx.globalAlpha=1;drawFusumaClose(e);}
   if(u>=1)G.trans=null;}
- Input.endFrame();}
+ Input.endFrame(dt===0&&G.mode==='field'?HOLD_KEYS:null);}
 function drawFusuma(k){if(k<=0)return;const h=Math.round(STRIP_T*k);if(h>0){ctx.drawImage(BAR,0,STRIP_T-h,W,h,0,0,W,h);ctx.save();ctx.translate(0,H);ctx.scale(1,-1);ctx.drawImage(BAR,0,STRIP_T-h,W,h,0,0,W,h);ctx.restore();ctx.fillStyle='#cda451';ctx.fillRect(0,h,W,1);ctx.fillRect(0,H-h-1,W,1);}}
 function drawFusumaClose(k){}
 Game.exitAsk=async function(){Game.busy=true;const id=G.town.id;if(id==='shirogiri'&&(!has('letter')||!has('chi3'))){await N(has('letter')?'……まだ、話していない者がいる。千草は墓の前にいるはずだ。':'……山道の先が気にかかる。だがその前に、この村で見るべきものがある。');Game.busy=false;return;}const c=await ask(['旅立つ','もう少しここにいる']);Game.busy=false;if(c===0)Game.leaveTown();};

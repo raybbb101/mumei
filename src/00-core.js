@@ -38,7 +38,7 @@ class Pix{constructor(w,h,tile=false){this.w=w;this.h=h;this.tile=tile;this.c=mk
 // ── 入力
 const Input={down:{},pressed:{},released:{},map:{ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',Space:'jump',ShiftLeft:'run',ShiftRight:'run',KeyJ:'slash',KeyZ:'slash',KeyK:'iai',KeyX:'iai',KeyL:'guard',KeyC:'guard',KeyI:'dodge',KeyV:'dodge',KeyE:'act',Enter:'act',KeyM:'menu',Tab:'menu',Escape:'menu',KeyR:'autorun',KeyQ:'item'},
   press(a){if(!this.down[a]){this.pressed[a]=true;}this.down[a]=true;},release(a){if(this.down[a])this.released[a]=true;this.down[a]=false;},
-  endFrame(){this.pressed={};this.released={};},hit(a){return !!this.pressed[a];}};
+  endFrame(hold){const q={};if(hold)for(const a of hold)if(this.pressed[a])q[a]=true;this.pressed=q;this.released={};},hit(a){return !!this.pressed[a];}};
 addEventListener('keydown',e=>{const a=Input.map[e.code];if(a){e.preventDefault();if(!e.repeat)Input.press(a);}Audio2.unlock();});
 addEventListener('keyup',e=>{const a=Input.map[e.code];if(a){e.preventDefault();Input.release(a);}});
 addEventListener('blur',()=>{for(const k in Input.down)Input.down[k]=false;});

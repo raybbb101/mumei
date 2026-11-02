@@ -2,7 +2,10 @@
 // 体の各部を球を引き伸ばしたカプセルとして塗り、Zバッファ・法線・段階トーン・リムライト・輪郭線を掛ける。
 // 手足はIKで解くので毎フレーム違う絵になり、コマ割りではなく60fpsで滑らかに動く。
 const BW=220,BH=190;
-const rigCan=mkCanvas(BW,BH),rigG=rigCan.getContext('2d'),rigImg=rigG.createImageData(BW,BH);
+// Safari は drawImage の元を後から読むことがあるため、同じフレームで下書きキャンバスを使い回さない
+const rigPool=[];let rigPoolI=0;
+const rigNext=()=>{if(rigPoolI>=rigPool.length){const c=mkCanvas(BW,BH);rigPool.push({c,g:c.getContext('2d')});}return rigPool[rigPoolI++];},rigBeginFrame=()=>{rigPoolI=0;};
+const rigImg=mkCanvas(1,1).getContext('2d').createImageData(BW,BH);
 const CB=new Uint32Array(rigImg.data.buffer),ZB=new Float32Array(BW*BH);ZB.fill(-1e9);
 let dirty=[0,0,0,0];
 const LE=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
@@ -52,7 +55,8 @@ function ik(a,c,l1,l2,pole){let dx=c[0]-a[0],dy=c[1]-a[1],dz=c[2]-a[2],d=Math.hy
 const PN=['hx','hy','hz','lean','tw','hp','hy2','rx','ry','rz','lx','ly','lz','frx','fry','frz','flx','fly','flz','sw','swz','grip','shea','armor'];
 const PI={};PN.forEach((n,i)=>PI[n]=i);const PL=PN.length;
 function pose(o,base){const p=new Float32Array(PL);if(base)p.set(base);for(const k in o)p[PI[k]]=o[k];return p;}
-const STAND=pose({hx:0,hy:29,hz:0,lean:.04,tw:.12,hp:0,hy2:0,rx:3,ry:29,rz:8.5,lx:0,ly:32,lz:-7.5,frx:1.5,fry:2,frz:3.8,flx:-2,fly:2,flz:-3.8,sw:-1.3,swz:0,grip:0,shea:1});
+const LEG=14.8;
+const STAND=pose({hx:0,hy:32.4,hz:0,lean:.04,tw:.12,hp:0,hy2:0,rx:3,ry:32.4,rz:8.5,lx:0,ly:35.4,lz:-7.5,frx:1,fry:2,frz:3.8,flx:-1.5,fly:2,flz:-3.8,sw:-1.3,swz:0,grip:0,shea:1});
 // ── 人物1体を焼く
 function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p=A.pose;
   R.yaw=o.yaw===undefined?.45:o.yaw;R.pitch=o.pitch||0;R.mirror=!!o.mirror;R.s=s;R.ox=o.ox===undefined?BW/2:o.ox;R.oy=o.oy===undefined?BH-22:o.oy;R.cy=Math.cos(R.yaw);R.sy=Math.sin(R.yaw);R.cp=Math.cos(R.pitch);R.sp=Math.sin(R.pitch);R.flash=A.flash||0;R.dis=A.dissolve||0;R.time=A.time||0;
@@ -62,7 +66,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   const hl=ln*.55+g('hp'),head=[neck[0]+Math.sin(hl)*6.2,neck[1]+Math.cos(hl)*6.2,neck[2]];
   const SW=6.6*w,shR=[chest[0]+Math.sin(tw)*SW-sl*.5,chest[1]+1,chest[2]+Math.cos(tw)*SW],shL=[chest[0]-Math.sin(tw)*SW,chest[1]+1,chest[2]-Math.cos(tw)*SW];
   const hipR=[hip[0]+Math.sin(tw*.4)*4,hip[1]-1,hip[2]+3.6],hipL=[hip[0]-Math.sin(tw*.4)*4,hip[1]-1,hip[2]-3.6];
-  const [kR,fR]=ik(hipR,[g('frx'),g('fry'),g('frz')],15.2,15.2,[1,.1,.15]),[kL,fL]=ik(hipL,[g('flx'),g('fly'),g('flz')],15.2,15.2,[1,.1,-.15]);
+  const [kR,fR]=ik(hipR,[g('frx'),g('fry'),g('frz')],LEG,LEG,[1,.1,.15]),[kL,fL]=ik(hipL,[g('flx'),g('fly'),g('flz')],LEG,LEG,[1,.1,-.15]);
   const sa=g('sw'),swz=g('swz'),dir=[Math.cos(sa)*Math.cos(swz),Math.sin(sa)*Math.cos(swz),Math.sin(swz)];
   const handT=[g('rx'),g('ry'),g('rz')];let handLT=[g('lx'),g('ly'),g('lz')];const grip=g('grip');
   if(grip>0){const gp=[handT[0]-dir[0]*6,handT[1]-dir[1]*6,handT[2]-dir[2]*6];handLT=[lerp(handLT[0],gp[0],grip),lerp(handLT[1],gp[1],grip),lerp(handLT[2],gp[2],grip)];}
@@ -84,7 +88,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   // 脚
   if(S.robe){const hemR=[lerp(kR[0],fR[0],.75),lerp(kR[1],fR[1],.85),fR[2]],hemL=[lerp(kL[0],fL[0],.75),lerp(kL[1],fL[1],.85),fL[2]];seg(hipR,hemR,5*w,4.4*w,M.leg,S.legPat||4);seg(hipL,hemL,5*w,4.4*w,M.leg,S.legPat||4);const mid=[(hemR[0]+hemL[0])/2,(hemR[1]+hemL[1])/2,0];seg(hip,mid,6.2*w,5.6*w,M.leg,S.legPat||4);}
   else if(S.tight){seg(hipR,kR,4.8,3.4,M.leg);seg(kR,fR,3.3,2.5,M.leg);seg(hipL,kL,4.8,3.4,M.leg);seg(kL,fL,3.3,2.5,M.leg);seg([fR[0],fR[1]+6,fR[2]],[fR[0],fR[1]+11,fR[2]],2.9,3.2,M.wrap||M.leg,3,{bands:4});seg([fL[0],fL[1]+6,fL[2]],[fL[0],fL[1]+11,fL[2]],2.9,3.2,M.wrap||M.leg,3,{bands:4});}
-  else{const hem=(k,f)=>[lerp(k[0],f[0],.8),lerp(k[1],f[1],.8)+.5,f[2]];seg(hipR,kR,4.9*w,5*w,M.leg,1);seg(kR,hem(kR,fR),5*w,6.1*w,M.leg,1);seg(hipL,kL,4.9*w,5*w,M.leg,1);seg(kL,hem(kL,fL),5*w,6.1*w,M.leg,1);seg(hip,[(kR[0]+kL[0])/2,(kR[1]+kL[1])/2,0],6.2*w,4.6*w,M.leg,1);}
+  else{const hem=(k,f)=>[lerp(k[0],f[0],.8),lerp(k[1],f[1],.8)+.5,f[2]];seg(hipR,kR,4.9*w,5*w,M.leg,1);seg(kR,hem(kR,fR),4.6*w,5.3*w,M.leg,1);seg(hipL,kL,4.9*w,5*w,M.leg,1);seg(kL,hem(kL,fL),4.6*w,5.3*w,M.leg,1);seg(hip,[(kR[0]+kL[0])/2,(kR[1]+kL[1])/2,0],6.2*w,4.6*w,M.leg,1);}
   // 足(草履)
   const foot=(f,zs)=>{const toe=[f[0]+5.2,Math.max(.8,f[1]-1.2),f[2]];seg([f[0]-1.4,f[1]-.6,f[2]],toe,1.9,1.5,M.foot||'skin');seg([f[0]-1.8,f[1]-2,f[2]],[toe[0]+.4,toe[1]-1.1,f[2]],1.5,1.1,M.sandal||'straw',7);};foot(fR);foot(fL);
   // 腕+袖
@@ -117,7 +121,7 @@ function drawRig(ctx,A,sx,sy,o={}){const S=A.style,s=(o.scale||1)*(S.scale||1),p
   // 太刀筋
   if(A.trail&&A.trail.length>1)drawTrail(A.trail,sx,sy,o);
   const w2=x1-x0+1,h2=y1-y0+1;
-  if(w2>0&&h2>0){rigG.putImageData(rigImg,0,0,x0,y0,w2,h2);ctx.drawImage(rigCan,x0,y0,w2,h2,Math.round(sx-R.ox+x0),Math.round(sy-R.oy+y0),w2,h2);
+  if(w2>0&&h2>0){const rc=rigNext();rc.g.putImageData(rigImg,0,0,x0,y0,w2,h2);ctx.drawImage(rc.c,x0,y0,w2,h2,Math.round(sx-R.ox+x0),Math.round(sy-R.oy+y0),w2,h2);
     for(let y=y0;y<=y1;y++){const a=y*BW;CB.fill(0,a+x0,a+x1+1);ZB.fill(-1e9,a+x0,a+x1+1);}}
   // 刀身の先端を返す(太刀筋用)
   return{hand:hR,dir};
